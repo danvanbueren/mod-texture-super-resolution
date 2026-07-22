@@ -1,31 +1,30 @@
 package me.danvb10.mtsr.config.components;
 
-import io.wispforest.owo.ui.component.Components;
-import io.wispforest.owo.ui.core.Component;
+import io.wispforest.owo.ui.component.UIComponents;
+import io.wispforest.owo.ui.core.UIComponent;
 import me.danvb10.mtsr.config.ConfigScreen;
-import net.minecraft.text.Text;
 
 import static me.danvb10.mtsr.config.components.RichWindowTypes.*;
 
-public class ActivityLogWindow {
+public class TextureManagerWindow {
     private final RichWindow richWindow;
     private boolean fullscreen;
 
-    public ActivityLogWindow(ConfigScreen parent) {
-        this.richWindow = new RichWindow(parent, ACTIVITY_MONITOR_WINDOW);
+    public TextureManagerWindow(ConfigScreen parent) {
+        this.richWindow = new RichWindow(parent, TEXTURE_MANAGER_WINDOW);
     }
 
-    public Component build() {
+    public UIComponent build() {
         richWindow
-                .setWindowName("Activity Monitor")
-                .setWindowTooltip("Activity Monitor")
+                .setWindowName("Texture Manager")
+                .setWindowTooltip("Texture Manager")
                 .setFullHeight(true)
                 .setMinimizeIsDisabled(true);
 
         if (fullscreen) richWindow.setMaximized(true);
 
         richWindow
-                .child(Components.label(Text.literal("a child")));
+                .child(UIComponents.label(net.minecraft.network.chat.Component.literal("a child")));
 
         return richWindow.build();
     }
@@ -34,7 +33,7 @@ public class ActivityLogWindow {
     public boolean isFullscreen() {
         return fullscreen;
     }
-    public ActivityLogWindow setFullscreen(boolean fullscreen) {
+    public TextureManagerWindow setFullscreen(boolean fullscreen) {
         this.fullscreen = fullscreen;
         return this;
     }

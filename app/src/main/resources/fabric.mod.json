@@ -9,8 +9,8 @@
 	],
 	"contact": {
 		"homepage": "https://modrinth.com/mod/mtsr",
-		"sources": "https://github.com/danvanbueren/MTSR",
-		"issues": "https://github.com/danvanbueren/MTSR/issues"
+		"sources": "https://github.com/danvanbueren/mod-texture-super-resolution",
+		"issues": "https://github.com/danvanbueren/mod-texture-super-resolution/issues"
 	},
 	"license": "GPL-3.0",
 	"icon": "assets/mtsr/icon.png",
@@ -26,18 +26,18 @@
 	"custom" : {
 		"modmenu" : {
 			"links" : {
-				"modmenu.github_releases" : "https://github.com/danvanbueren/MTSR/releases",
+				"modmenu.github_releases" : "https://github.com/danvanbueren/mod-texture-super-resolution/releases",
 				"modmenu.modrinth" : "https://modrinth.com/mod/mtsr"
 			}
 		}
 	},
 	"depends": {
-		"fabricloader": ">=0.16.13",
-		"minecraft": "~1.20.1",
-		"java": ">=17",
+		"fabricloader": ">=0.19.3",
+		"minecraft": ">=26.1 <26.2",
+		"java": ">=25",
 		"fabric-api": "*",
-		"modmenu": ">=7.2.0",
-		"owo": ">=0.11.2+1.20"
+		"modmenu": ">=18.0.0",
+		"owo": ">=0.13.0"
 	},
 	"suggests": {
 

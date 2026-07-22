@@ -2,14 +2,14 @@ package me.danvb10.mtsr.config;
 
 import io.wispforest.owo.ui.base.BaseOwoScreen;
 import io.wispforest.owo.ui.component.*;
-import io.wispforest.owo.ui.container.Containers;
+import io.wispforest.owo.ui.container.UIContainers;
 import io.wispforest.owo.ui.container.FlowLayout;
 import io.wispforest.owo.ui.core.*;
 import me.danvb10.mtsr.config.components.*;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.text.Text;
-import net.minecraft.util.Formatting;
+import net.minecraft.ChatFormatting;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.network.chat.Component;
 import org.jetbrains.annotations.NotNull;
 
 import static me.danvb10.mtsr.ClientEntrypoint.LOGGER;
@@ -43,7 +43,7 @@ public class ConfigScreen extends BaseOwoScreen<FlowLayout> {
     // Create adapter
     @Override
     protected @NotNull OwoUIAdapter<FlowLayout> createAdapter() {
-        return OwoUIAdapter.create(this, Containers::verticalFlow);
+        return OwoUIAdapter.create(this, UIContainers::verticalFlow);
     }
 
     // Build full component
@@ -52,12 +52,12 @@ public class ConfigScreen extends BaseOwoScreen<FlowLayout> {
         root
                 .child(getScreenTitle(parent))
                 .child(
-                        Containers.horizontalFlow(Sizing.fill(100), Sizing.fill(66))
+                        UIContainers.horizontalFlow(Sizing.fill(100), Sizing.fill(66))
                                 .child(
-                                        Containers.verticalScroll(Sizing.fill(33), Sizing.fill(100),
-                                                Containers.verticalFlow(Sizing.fill(100), Sizing.content())
+                                        UIContainers.verticalScroll(Sizing.fill(33), Sizing.fill(100),
+                                                UIContainers.verticalFlow(Sizing.fill(100), Sizing.content())
                                                         .child(
-                                                                Containers.verticalFlow(Sizing.fill(100), Sizing.content())
+                                                                UIContainers.verticalFlow(Sizing.fill(100), Sizing.content())
                                                                         .child(this.generalSettingsWindow.build())
                                                                         .child(this.modelSettingsWindow.build())
                                                                         .child(this.quickActionsWindow.build())
@@ -68,10 +68,10 @@ public class ConfigScreen extends BaseOwoScreen<FlowLayout> {
                                                 .padding(Insets.of(0, 12, 0, 8))
                                 )
                                 .child(
-                                        Containers.verticalScroll(Sizing.fill(66), Sizing.fill(100),
-                                                        Containers.verticalFlow(Sizing.fill(100), Sizing.content())
+                                        UIContainers.verticalScroll(Sizing.fill(66), Sizing.fill(100),
+                                                        UIContainers.verticalFlow(Sizing.fill(100), Sizing.content())
                                                                 .child(
-                                                                        Containers.verticalFlow(Sizing.fill(100), Sizing.content())
+                                                                        UIContainers.verticalFlow(Sizing.fill(100), Sizing.content())
                                                                                 .child(this.textureManagerWindow.build())
                                                                                 .padding(Insets.of(0, 0, 0, 8))
                                                                 )
@@ -82,20 +82,20 @@ public class ConfigScreen extends BaseOwoScreen<FlowLayout> {
 
                 )
                 .child(
-                        Containers.horizontalFlow(Sizing.fill(100), Sizing.fill(28))
+                        UIContainers.horizontalFlow(Sizing.fill(100), Sizing.fill(28))
                                 .child(
-                                        Containers.verticalFlow(Sizing.fill(33), Sizing.fill(100))
+                                        UIContainers.verticalFlow(Sizing.fill(33), Sizing.fill(100))
                                                 .child(
-                                                        Containers.verticalFlow(Sizing.fill(100), Sizing.content())
+                                                        UIContainers.verticalFlow(Sizing.fill(100), Sizing.content())
                                                                 .child(this.activityMonitorWindow.build())
                                                                 .padding(Insets.of(0, 0, 0, 8))
                                                 )
                                                 .padding(Insets.of(0, 0, 0, 8))
                                 )
                                 .child(
-                                        Containers.verticalFlow(Sizing.fill(66), Sizing.fill(100))
+                                        UIContainers.verticalFlow(Sizing.fill(66), Sizing.fill(100))
                                                 .child(
-                                                        Containers.verticalFlow(Sizing.fill(100), Sizing.content())
+                                                        UIContainers.verticalFlow(Sizing.fill(100), Sizing.content())
                                                                 .child(this.activityLogWindow.build())
                                                                 .padding(Insets.of(0, 0, 0, 8))
                                                 )
@@ -117,14 +117,14 @@ public class ConfigScreen extends BaseOwoScreen<FlowLayout> {
 
     // Create screen title component
     public static FlowLayout getScreenTitle(Screen parent) {
-        return Containers.horizontalFlow(Sizing.fill(100), Sizing.content())
+        return UIContainers.horizontalFlow(Sizing.fill(100), Sizing.content())
                 .child(
-                        Containers.horizontalFlow(Sizing.fill(25), Sizing.fill(6))
+                        UIContainers.horizontalFlow(Sizing.fill(25), Sizing.fill(6))
                                 .child(
-                                        Components.button(
-                                                        Text.literal("Back"),
+                                        UIComponents.button(
+                                                        Component.literal("Back"),
                                                         buttonComponent -> {
-                                                            MinecraftClient.getInstance().setScreen(parent);
+                                                            Minecraft.getInstance().setScreen(parent);
                                                         }
                                                 )
                                                 .horizontalSizing(Sizing.content(8))
@@ -133,11 +133,11 @@ public class ConfigScreen extends BaseOwoScreen<FlowLayout> {
                                 .verticalAlignment(VerticalAlignment.TOP)
                 )
                 .child(
-                        Containers.horizontalFlow(Sizing.fill(50), Sizing.fill(6))
+                        UIContainers.horizontalFlow(Sizing.fill(50), Sizing.fill(6))
                                 .child(
-                                        Components.label(
-                                                Text.literal("Mod Texture Super Resolution Configuration")
-                                                        .formatted(Formatting.BOLD)
+                                        UIComponents.label(
+                                                Component.literal("Mod Texture Super Resolution Configuration")
+                                                        .withStyle(ChatFormatting.BOLD)
                                         )
                                 )
                                 .horizontalAlignment(HorizontalAlignment.CENTER)
@@ -152,9 +152,9 @@ public class ConfigScreen extends BaseOwoScreen<FlowLayout> {
 
     // Ensure redirection to last screen on close
     @Override
-    public void close() {
-        assert this.client != null;
-        this.client.setScreen(parent);
+    public void onClose() {
+        assert this.minecraft != null;
+        this.minecraft.setScreen(parent);
     }
 
     // Called by ModMenuIntegration

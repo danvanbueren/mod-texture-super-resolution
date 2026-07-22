@@ -1,10 +1,10 @@
 package me.danvb10.mtsr.config;
 
 import io.wispforest.owo.ui.base.BaseOwoScreen;
-import io.wispforest.owo.ui.container.Containers;
+import io.wispforest.owo.ui.container.UIContainers;
 import io.wispforest.owo.ui.container.FlowLayout;
 import io.wispforest.owo.ui.core.*;
-import net.minecraft.client.gui.screen.Screen;
+import net.minecraft.client.gui.screens.Screen;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
@@ -13,7 +13,7 @@ import static me.danvb10.mtsr.config.ConfigScreen.getScreenTitle;
 
 public class ConfigScreenRichWindowMaximized extends BaseOwoScreen<FlowLayout> {
 
-    private final ArrayList<Component> children;
+    private final ArrayList<UIComponent> children;
     private final Screen parent;
 
     // Constructor
@@ -25,7 +25,7 @@ public class ConfigScreenRichWindowMaximized extends BaseOwoScreen<FlowLayout> {
     // Create adapter
     @Override
     protected @NotNull OwoUIAdapter<FlowLayout> createAdapter() {
-        return OwoUIAdapter.create(this, Containers::verticalFlow);
+        return OwoUIAdapter.create(this, UIContainers::verticalFlow);
     }
 
     // Build full component
@@ -34,12 +34,12 @@ public class ConfigScreenRichWindowMaximized extends BaseOwoScreen<FlowLayout> {
         root
                 .child(getScreenTitle(parent))
                 .child(
-                        Containers.horizontalFlow(Sizing.fill(100), Sizing.fill(94))
+                        UIContainers.horizontalFlow(Sizing.fill(100), Sizing.fill(94))
                                 .child(
-                                        Containers.verticalScroll(Sizing.fill(100), Sizing.fill(100),
-                                                        Containers.verticalFlow(Sizing.fill(100), Sizing.content())
+                                        UIContainers.verticalScroll(Sizing.fill(100), Sizing.fill(100),
+                                                        UIContainers.verticalFlow(Sizing.fill(100), Sizing.content())
                                                                 .child(
-                                                                        Containers.verticalFlow(Sizing.fill(100), Sizing.content())
+                                                                        UIContainers.verticalFlow(Sizing.fill(100), Sizing.content())
                                                                                 .children(this.children)
                                                                                 .padding(Insets.of(0, 0, 0, 8))
                                                                 )
@@ -57,13 +57,13 @@ public class ConfigScreenRichWindowMaximized extends BaseOwoScreen<FlowLayout> {
 
     // Ensure redirection to last screen on close
     @Override
-    public void close() {
-        assert this.client != null;
-        this.client.setScreen(parent);
+    public void onClose() {
+        assert this.minecraft != null;
+        this.minecraft.setScreen(parent);
     }
 
     // Helper method to add children
-    public ConfigScreenRichWindowMaximized child(Component component) {
+    public ConfigScreenRichWindowMaximized child(UIComponent component) {
         this.children.add(component);
         return this;
     }

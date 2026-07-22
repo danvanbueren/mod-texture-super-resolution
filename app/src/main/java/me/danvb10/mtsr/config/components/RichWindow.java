@@ -106,13 +106,17 @@ public class RichWindow {
 
     // Handle toggle maximization
     private void toggleMaximized(ButtonComponent button) {
-        assert MinecraftClient.getInstance() != null;
+        MinecraftClient client = MinecraftClient.getInstance();
+        if (client == null) {
+            LOGGER.error("RichWindow[" + this.uuid + "]: cannot toggle maximization, MinecraftClient is null");
+            throw new IllegalStateException("MinecraftClient is null while toggling maximization for " + this.richWindowType);
+        }
 
         if (this.maximized) {
             // Minimize
             log("Minimizing " + this.richWindowType);
 
-            MinecraftClient.getInstance().setScreen(this.owner);
+            client.setScreen(this.owner);
         } else {
             // Maximize
             log("Maximizing " + this.richWindowType);
@@ -162,7 +166,7 @@ public class RichWindow {
             Screen maxedScreen = new ConfigScreenRichWindowMaximized(this.owner)
                     .child(newComponent);
 
-            MinecraftClient.getInstance().setScreen(maxedScreen);
+            client.setScreen(maxedScreen);
         }
     }
 

@@ -1,41 +1,25 @@
 package me.danvb10.mtsr.config.components;
 
-import io.wispforest.owo.ui.component.Components;
-import io.wispforest.owo.ui.core.Component;
 import me.danvb10.mtsr.config.ConfigScreen;
-import net.minecraft.text.Text;
 
-import static me.danvb10.mtsr.config.components.RichWindowTypes.*;
+import static me.danvb10.mtsr.config.components.RichWindowTypes.ACTIVITY_MONITOR_WINDOW;
 
-public class ActivityLogWindow {
-    private final RichWindow richWindow;
-    private boolean fullscreen;
+public class ActivityLogWindow extends AbstractRichWindow<ActivityLogWindow> {
 
+    // NOTE: behaviour preserved from before the refactor. This window is wired to
+    // ACTIVITY_MONITOR_WINDOW / "Activity Monitor" (rather than ACTIVITY_LOG_WINDOW /
+    // "Activity Log"), which appears to be a copy-paste bug in the original code.
     public ActivityLogWindow(ConfigScreen parent) {
-        this.richWindow = new RichWindow(parent, ACTIVITY_MONITOR_WINDOW);
+        super(parent, ACTIVITY_MONITOR_WINDOW);
     }
 
-    public Component build() {
-        richWindow
-                .setWindowName("Activity Monitor")
-                .setWindowTooltip("Activity Monitor")
-                .setFullHeight(true)
-                .setMinimizeIsDisabled(true);
-
-        if (fullscreen) richWindow.setMaximized(true);
-
-        richWindow
-                .child(Components.label(Text.literal("a child")));
-
-        return richWindow.build();
+    @Override
+    protected String windowName() {
+        return "Activity Monitor";
     }
 
-    // Getters & Setters
-    public boolean isFullscreen() {
-        return fullscreen;
-    }
-    public ActivityLogWindow setFullscreen(boolean fullscreen) {
-        this.fullscreen = fullscreen;
-        return this;
+    @Override
+    protected boolean dockedFullHeight() {
+        return true;
     }
 }

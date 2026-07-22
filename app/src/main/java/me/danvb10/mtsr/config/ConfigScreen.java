@@ -153,7 +153,10 @@ public class ConfigScreen extends BaseOwoScreen<FlowLayout> {
     // Ensure redirection to last screen on close
     @Override
     public void close() {
-        assert this.client != null;
+        if (this.client == null) {
+            LOGGER.error("Cannot close ConfigScreen: MinecraftClient is null");
+            throw new IllegalStateException("MinecraftClient is null while closing ConfigScreen");
+        }
         this.client.setScreen(parent);
     }
 

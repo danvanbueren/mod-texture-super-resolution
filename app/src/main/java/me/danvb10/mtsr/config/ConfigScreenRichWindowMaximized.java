@@ -9,6 +9,7 @@ import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
 
+import static me.danvb10.mtsr.ClientEntrypoint.LOGGER;
 import static me.danvb10.mtsr.config.ConfigScreen.getScreenTitle;
 
 public class ConfigScreenRichWindowMaximized extends BaseOwoScreen<FlowLayout> {
@@ -58,7 +59,10 @@ public class ConfigScreenRichWindowMaximized extends BaseOwoScreen<FlowLayout> {
     // Ensure redirection to last screen on close
     @Override
     public void close() {
-        assert this.client != null;
+        if (this.client == null) {
+            LOGGER.error("Cannot close ConfigScreenRichWindowMaximized: MinecraftClient is null");
+            throw new IllegalStateException("MinecraftClient is null while closing ConfigScreenRichWindowMaximized");
+        }
         this.client.setScreen(parent);
     }
 

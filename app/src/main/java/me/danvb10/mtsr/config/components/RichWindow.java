@@ -1,18 +1,18 @@
 package me.danvb10.mtsr.config.components;
 
 import io.wispforest.owo.ui.component.ButtonComponent;
-import io.wispforest.owo.ui.component.Components;
+import io.wispforest.owo.ui.component.UIComponents;
 import io.wispforest.owo.ui.container.CollapsibleContainer;
-import io.wispforest.owo.ui.container.Containers;
+import io.wispforest.owo.ui.container.UIContainers;
 import io.wispforest.owo.ui.container.FlowLayout;
 import io.wispforest.owo.ui.container.ScrollContainer;
 import io.wispforest.owo.ui.core.*;
 import me.danvb10.mtsr.config.ConfigScreen;
 import me.danvb10.mtsr.config.ConfigScreenRichWindowMaximized;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.text.Text;
-import net.minecraft.util.Formatting;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.network.chat.Component;
+import net.minecraft.ChatFormatting;
 
 import java.util.ArrayList;
 import java.util.UUID;
@@ -27,8 +27,8 @@ public class RichWindow {
     private final ConfigScreen owner;
     private final RichWindowTypes richWindowType;
     private boolean fullHeight, maximized, minimizeIsDisabled;
-    private final ArrayList<Component> children;
-    private ArrayList<Component> prerequisiteChildren;
+    private final ArrayList<UIComponent> children;
+    private ArrayList<UIComponent> prerequisiteChildren;
     private CollapsibleContainer collapsibleContainer;
 
     // Constructor
@@ -53,38 +53,38 @@ public class RichWindow {
     }
 
     // Build title bar component prefix
-    private ArrayList<Component> buildPrerequisiteChildren() {
-        Component title =
-                Components.label(Text.literal(this.windowName))
-                        .tooltip(Text.literal(this.windowTooltip))
+    private ArrayList<UIComponent> buildPrerequisiteChildren() {
+        UIComponent title =
+                UIComponents.label(Component.literal(this.windowName))
+                        .tooltip(Component.literal(this.windowTooltip))
                 ;
 
-        Component minButton =
-                Components.button(Text.literal("-"), button -> {this.collapsibleContainer.toggleExpansion();})
+        UIComponent minButton =
+                UIComponents.button(Component.literal("-"), button -> {this.collapsibleContainer.toggleExpansion();})
                         .verticalSizing(Sizing.fixed(10))
                         .horizontalSizing(Sizing.fixed(10))
                         .margins(Insets.right(5))
                 ;
 
-        Component maxButton =
-                Components.button(Text.literal("[]"), this::toggleMaximized)
+        UIComponent maxButton =
+                UIComponents.button(Component.literal("[]"), this::toggleMaximized)
                         .verticalSizing(Sizing.fixed(10))
                         .horizontalSizing(Sizing.fixed(10))
                 ;
 
-        FlowLayout minMaxButtons = Containers.horizontalFlow(Sizing.content(), Sizing.content());
+        FlowLayout minMaxButtons = UIContainers.horizontalFlow(Sizing.content(), Sizing.content());
         if (!minimizeIsDisabled) minMaxButtons.child(minButton);
         minMaxButtons.child(maxButton);
         minMaxButtons.horizontalAlignment(HorizontalAlignment.RIGHT);
 
-        Component parentTitle =
-                Containers.horizontalFlow(Sizing.fill(100), Sizing.content())
+        UIComponent parentTitle =
+                UIContainers.horizontalFlow(Sizing.fill(100), Sizing.content())
                         .child(
-                                Containers.horizontalFlow(Sizing.fill(70), Sizing.content())
+                                UIContainers.horizontalFlow(Sizing.fill(70), Sizing.content())
                                         .child(title)
                         )
                         .child(
-                                Containers.horizontalFlow(Sizing.fill(30), Sizing.content())
+                                UIContainers.horizontalFlow(Sizing.fill(30), Sizing.content())
                                         .child(minMaxButtons)
                                         .horizontalAlignment(HorizontalAlignment.RIGHT)
                         )
@@ -92,13 +92,13 @@ public class RichWindow {
                         .verticalAlignment(VerticalAlignment.CENTER)
                 ;
 
-        Component titleDivider =
-                Components.box(Sizing.fill(100), Sizing.fixed(1))
-                        .color(Color.ofFormatting(Formatting.DARK_GRAY))
+        UIComponent titleDivider =
+                UIComponents.box(Sizing.fill(100), Sizing.fixed(1))
+                        .color(Color.ofFormatting(ChatFormatting.DARK_GRAY))
                         .margins(Insets.vertical(5))
                 ;
 
-        ArrayList<Component> c = new ArrayList<>();
+        ArrayList<UIComponent> c = new ArrayList<>();
         c.add(parentTitle);
         c.add(titleDivider);
         return c;
@@ -106,10 +106,10 @@ public class RichWindow {
 
     // Handle toggle maximization
     private void toggleMaximized(ButtonComponent button) {
-        MinecraftClient client = MinecraftClient.getInstance();
+        Minecraft client = Minecraft.getInstance();
         if (client == null) {
-            LOGGER.error("RichWindow[" + this.uuid + "]: cannot toggle maximization, MinecraftClient is null");
-            throw new IllegalStateException("MinecraftClient is null while toggling maximization for " + this.richWindowType);
+            LOGGER.error("RichWindow[" + this.uuid + "]: cannot toggle maximization, Minecraft is null");
+            throw new IllegalStateException("Minecraft is null while toggling maximization for " + this.richWindowType);
         }
 
         if (this.maximized) {
@@ -121,7 +121,7 @@ public class RichWindow {
             // Maximize
             log("Maximizing " + this.richWindowType);
 
-            Component newComponent;
+            UIComponent newComponent;
 
             switch (this.richWindowType) {
                 case GENERAL_SETTINGS_WINDOW:
@@ -171,34 +171,34 @@ public class RichWindow {
     }
 
     // Build and return full component
-    public Component build() {
+    public UIComponent build() {
         this.prerequisiteChildren = buildPrerequisiteChildren();
 
-        ArrayList<Component> copiedPrerequisiteChildrenArrayList = new ArrayList<>(this.prerequisiteChildren);
+        ArrayList<UIComponent> copiedPrerequisiteChildrenArrayList = new ArrayList<>(this.prerequisiteChildren);
         FlowLayout flowLayout;
 
         if (fullHeight) {
-            flowLayout = Containers.verticalFlow(Sizing.fill(100), Sizing.fill(100));
+            flowLayout = UIContainers.verticalFlow(Sizing.fill(100), Sizing.fill(100));
 
-            ScrollContainer<FlowLayout> scrollableContainer = Containers
+            ScrollContainer<FlowLayout> scrollableContainer = UIContainers
                     .verticalScroll(Sizing.fill(100), Sizing.fill(100),
-                            Containers
+                            UIContainers
                                     .verticalFlow(Sizing.fill(100), Sizing.content())
                                     .children(this.children)
                     );
 
             copiedPrerequisiteChildrenArrayList.add(scrollableContainer);
         } else {
-            flowLayout = Containers.verticalFlow(Sizing.fill(100), Sizing.content());
+            flowLayout = UIContainers.verticalFlow(Sizing.fill(100), Sizing.content());
 
-            this.collapsibleContainer = (CollapsibleContainer) Containers
-                    .collapsible(Sizing.content(), Sizing.content(), Text.literal(""), true)
+            this.collapsibleContainer = (CollapsibleContainer) UIContainers
+                    .collapsible(Sizing.content(), Sizing.content(), Component.literal(""), true)
                     .children(this.children);
 
             copiedPrerequisiteChildrenArrayList.add(this.collapsibleContainer);
         }
 
-        ParentComponent rootLayout = flowLayout.children(copiedPrerequisiteChildrenArrayList);
+        ParentUIComponent rootLayout = flowLayout.children(copiedPrerequisiteChildrenArrayList);
 
         rootLayout
                 .padding(Insets.of(8))
@@ -245,7 +245,7 @@ public class RichWindow {
     }
 
     // Helper method to add children
-    public RichWindow child(Component component) {
+    public RichWindow child(UIComponent component) {
         this.children.add(component);
         return this;
     }

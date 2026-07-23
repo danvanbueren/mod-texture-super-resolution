@@ -1,9 +1,9 @@
 package me.danvb10.mtsr.config.components;
 
-import io.wispforest.owo.ui.component.Components;
-import io.wispforest.owo.ui.core.Component;
+import io.wispforest.owo.ui.component.UIComponents;
+import io.wispforest.owo.ui.core.UIComponent;
 import me.danvb10.mtsr.config.ConfigScreen;
-import net.minecraft.text.Text;
+import net.minecraft.network.chat.Component;
 
 /**
  * Shared base for the small window wrappers around {@link RichWindow}. Each concrete window only
@@ -34,7 +34,7 @@ public abstract class AbstractRichWindow<SELF extends AbstractRichWindow<SELF>> 
         return false;
     }
 
-    public Component build() {
+    public UIComponent build() {
         richWindow
                 .setWindowName(windowName())
                 .setWindowTooltip(windowTooltip());
@@ -51,7 +51,7 @@ public abstract class AbstractRichWindow<SELF extends AbstractRichWindow<SELF>> 
                     .setMinimizeIsDisabled(true);
         }
 
-        richWindow.child(Components.label(Text.literal("a child")));
+        richWindow.child(UIComponents.label(Component.literal("a child")));
 
         return richWindow.build();
     }

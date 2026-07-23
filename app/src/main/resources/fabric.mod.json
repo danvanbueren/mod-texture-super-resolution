@@ -2,13 +2,13 @@
 	"schemaVersion": 1,
 	"id": "mtsr",
 	"version": "${version}",
-	"name": "MTSR",
-	"description": "Mod Texture Super Resolution (MTSR) is a client-side Fabric mod for Minecraft. Detects textures loaded by mods and runs ESRGAN to upscale, cache and load upscaled textures. Does not affect gameplay or logic.",
+	"name": "Mod Texture Super Resolution",
+	"description": "Mod Texture Super Resolution is a client-side Fabric mod for Minecraft. Detects textures loaded by mods and runs ESRGAN to upscale, cache and load upscaled textures. Does not affect gameplay or logic.",
 	"authors": [
 		"danvb10"
 	],
 	"contact": {
-		"homepage": "https://modrinth.com/mod/mtsr",
+		"homepage": "https://modrinth.com/user/danvanbueren",
 		"sources": "https://github.com/danvanbueren/mod-texture-super-resolution",
 		"issues": "https://github.com/danvanbueren/mod-texture-super-resolution/issues"
 	},
@@ -27,7 +27,7 @@
 		"modmenu" : {
 			"links" : {
 				"modmenu.github_releases" : "https://github.com/danvanbueren/mod-texture-super-resolution/releases",
-				"modmenu.modrinth" : "https://modrinth.com/mod/mtsr"
+				"modmenu.modrinth" : "https://modrinth.com/user/danvanbueren"
 			}
 		}
 	},

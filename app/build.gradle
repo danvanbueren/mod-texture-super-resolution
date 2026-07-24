@@ -38,8 +38,11 @@ dependencies {
 	implementation "io.wispforest:owo-lib:${project.owo_version}"
 	include "io.wispforest:owo-sentinel:${project.owo_version}"
 
-	implementation "com.microsoft.onnxruntime:onnxruntime:${project.onnxruntime_version}"
-	include "com.microsoft.onnxruntime:onnxruntime:${project.onnxruntime_version}"
+	// Not bundled: downloaded at runtime by OnnxRuntimeBootstrap (checksum-pinned)
+	// to keep the shipped mod jar small. localRuntime keeps it on the dev runtime
+	// classpath so `runClient` works without the download.
+	compileOnly "com.microsoft.onnxruntime:onnxruntime:${project.onnxruntime_version}"
+	localRuntime "com.microsoft.onnxruntime:onnxruntime:${project.onnxruntime_version}"
 
 	testImplementation platform("org.junit:junit-bom:5.10.2")
 	testImplementation "org.junit.jupiter:junit-jupiter"

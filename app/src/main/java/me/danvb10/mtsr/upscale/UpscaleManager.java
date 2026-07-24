@@ -54,7 +54,9 @@ public final class UpscaleManager implements AutoCloseable {
 
     /** Creates a manager rooted at the game directory's standard mod paths. */
     public static UpscaleManager create(Path gameDirectory) {
-        ModelManager models = new ModelManager(gameDirectory.resolve("config/mtsr/models"));
+        ModelManager models = new ModelManager(
+                gameDirectory.resolve("config/mtsr/models"),
+                gameDirectory.resolve("config/mtsr/runtime"));
         UpscaleCache cache = new UpscaleCache(gameDirectory.resolve("mtsr/cache"));
         return new UpscaleManager(models, cache);
     }

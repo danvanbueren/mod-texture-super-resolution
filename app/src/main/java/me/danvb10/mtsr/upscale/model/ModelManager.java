@@ -1,5 +1,6 @@
 package me.danvb10.mtsr.upscale.model;
 
+import me.danvb10.mtsr.upscale.runtime.OnnxRuntimeBootstrap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -33,11 +34,22 @@ public final class ModelManager implements ModelProvider, AutoCloseable {
             Pattern.compile("[-_]x(\\d+)$", Pattern.CASE_INSENSITIVE);
 
     private final Path modelDirectory;
+    private final Path runtimeDirectory;
     private UpscaleModel activeModel;
     private boolean loadAttempted;
 
     public ModelManager(Path modelDirectory) {
+        this(modelDirectory, null);
+    }
+
+    /**
+     * @param runtimeDirectory where the ONNX Runtime jar is downloaded to on
+     *                         first use, or {@code null} to skip the runtime
+     *                         bootstrap (e.g. in tests).
+     */
+    public ModelManager(Path modelDirectory, Path runtimeDirectory) {
         this.modelDirectory = modelDirectory;
+        this.runtimeDirectory = runtimeDirectory;
     }
 
     /** Lists available .onnx model files, sorted by name. */
@@ -77,6 +89,9 @@ public final class ModelManager implements ModelProvider, AutoCloseable {
         if (models.isEmpty()) {
             LOGGER.info("No ESRGAN model found in {}. Place a Real-ESRGAN .onnx model "
                     + "(e.g. realesrgan-x4.onnx) there to enable texture upscaling.", modelDirectory);
+            return Optional.empty();
+        }
+        if (runtimeDirectory != null && !OnnxRuntimeBootstrap.ensureAvailable(runtimeDirectory)) {
             return Optional.empty();
         }
         Path modelFile = models.getFirst();

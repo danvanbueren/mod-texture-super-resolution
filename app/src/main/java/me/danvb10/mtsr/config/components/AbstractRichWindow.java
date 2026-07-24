@@ -34,6 +34,11 @@ public abstract class AbstractRichWindow<SELF extends AbstractRichWindow<SELF>> 
         return false;
     }
 
+    // Adds the window's body components; defaults to a placeholder label.
+    protected void populateContent(RichWindow window) {
+        window.child(UIComponents.label(Component.literal("a child")));
+    }
+
     public UIComponent build() {
         richWindow
                 .setWindowName(windowName())
@@ -51,7 +56,7 @@ public abstract class AbstractRichWindow<SELF extends AbstractRichWindow<SELF>> 
                     .setMinimizeIsDisabled(true);
         }
 
-        richWindow.child(UIComponents.label(Component.literal("a child")));
+        populateContent(richWindow);
 
         return richWindow.build();
     }

@@ -56,6 +56,11 @@ public final class ModelManager implements ModelProvider, AutoCloseable {
         }
     }
 
+    /** Returns the already-loaded model, if any, without triggering a load. */
+    public synchronized Optional<UpscaleModel> loadedModel() {
+        return Optional.ofNullable(activeModel);
+    }
+
     /**
      * Returns the active model, loading the first available one on demand.
      * Empty if no model file is present or loading failed.

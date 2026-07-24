@@ -23,6 +23,9 @@
 			"me.danvb10.mtsr.config.ModMenuIntegration"
 		]
 	},
+	"mixins": [
+		"mtsr.mixins.json"
+	],
 	"custom" : {
 		"modmenu" : {
 			"links" : {

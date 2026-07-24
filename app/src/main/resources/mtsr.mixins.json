@@ -1,0 +1,11 @@
+{
+	"required": true,
+	"package": "me.danvb10.mtsr.mixin",
+	"compatibilityLevel": "JAVA_21",
+	"client": [
+		"SpriteResourceLoaderMixin"
+	],
+	"injectors": {
+		"defaultRequire": 1
+	}
+}

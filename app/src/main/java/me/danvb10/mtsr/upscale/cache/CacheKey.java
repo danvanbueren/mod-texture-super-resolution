@@ -12,6 +12,12 @@ import java.security.NoSuchAlgorithmException;
 public record CacheKey(String hash) {
 
     public static CacheKey of(byte[] textureBytes, String modelName, int scaleFactor) {
+        return of(textureBytes, modelName, scaleFactor, false);
+    }
+
+    /** Creates a cache key, optionally distinguishing animated frame results. */
+    public static CacheKey of(byte[] textureBytes, String modelName, int scaleFactor,
+                              boolean animated) {
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
             digest.update(textureBytes);
@@ -19,6 +25,8 @@ public record CacheKey(String hash) {
             digest.update(modelName.getBytes(StandardCharsets.UTF_8));
             digest.update((byte) 0);
             digest.update(Integer.toString(scaleFactor).getBytes(StandardCharsets.UTF_8));
+            digest.update((byte) 0);
+            digest.update((byte) (animated ? 1 : 0));
             return new CacheKey(toHex(digest.digest()));
         } catch (NoSuchAlgorithmException e) {
             throw new IllegalStateException("SHA-256 unavailable", e);

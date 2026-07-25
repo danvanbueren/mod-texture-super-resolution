@@ -23,6 +23,7 @@ public class ClientEntrypoint implements ClientModInitializer {
 
 	private static UpscaleManager upscaleManager;
 	private static MtsrConfig config = MtsrConfig.defaults();
+	private static MtsrConfigStore configStore;
 
 	public static Identifier id(String path) {
 		return Identifier.fromNamespaceAndPath(MOD_ID, path);
@@ -37,11 +38,17 @@ public class ClientEntrypoint implements ClientModInitializer {
 		return config;
 	}
 
+	/** Returns the persistent configuration store. */
+	public static MtsrConfigStore configStore() {
+		return configStore;
+	}
+
 	@Override
 	public void onInitializeClient() {
 		LOGGER.info("Initializing Client");
 		Path gameDir = FabricLoader.getInstance().getGameDir();
-		config = new MtsrConfigStore(gameDir.resolve("config/mtsr/config.json")).load();
+		configStore = new MtsrConfigStore(gameDir.resolve("config/mtsr/config.json"));
+		config = configStore.load();
 		upscaleManager = UpscaleManager.create(gameDir, config);
 		UpscaleCompletionToast.register(upscaleManager);
 		new ModelDownloader(gameDir.resolve("config/mtsr/models")).downloadIfMissing();

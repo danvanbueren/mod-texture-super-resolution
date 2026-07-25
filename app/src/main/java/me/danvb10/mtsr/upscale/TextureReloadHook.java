@@ -10,6 +10,7 @@ import net.fabricmc.fabric.api.resource.v1.ResourceLoader;
 import net.fabricmc.fabric.api.resource.v1.reloader.SimpleReloadListener;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.texture.DynamicTexture;
+import net.minecraft.client.resources.metadata.animation.AnimationMetadataSection;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.packs.PackType;
 import net.minecraft.server.packs.resources.PreparableReloadListener;
@@ -54,6 +55,15 @@ public final class TextureReloadHook extends SimpleReloadListener<Map<Identifier
                 id -> TextureDetector.isModTexture(id.getNamespace(), id.getPath(), config));
         Map<Identifier, byte[]> loaded = new HashMap<>(textures.size());
         for (Map.Entry<Identifier, Resource> entry : textures.entrySet()) {
+            try {
+                if (entry.getValue().metadata()
+                        .getSection(AnimationMetadataSection.TYPE).isPresent()) {
+                    continue;
+                }
+            } catch (IOException e) {
+                LOGGER.warn("Failed to read metadata for {}", entry.getKey(), e);
+                continue;
+            }
             try (InputStream stream = entry.getValue().open()) {
                 loaded.put(entry.getKey(), stream.readAllBytes());
             } catch (IOException e) {

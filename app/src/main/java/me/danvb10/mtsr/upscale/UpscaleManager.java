@@ -191,18 +191,22 @@ public final class UpscaleManager implements AutoCloseable {
             }
             UpscaleModel model = maybeModel.get();
             CacheKey key = CacheKey.of(pngBytes, model.name(), model.scaleFactor());
+            long started = System.nanoTime();
             Optional<byte[]> cached = cache.lookup(key);
             if (cached.isPresent()) {
-                long started = System.nanoTime();
-                Dimensions source = dimensions(pngBytes);
-                Dimensions target = dimensions(cached.get());
                 cacheHits.incrementAndGet();
                 notifyCallbacks(workKey, textureId, cached.get());
-                activityLog.append(logMessage(formatActivity("Cache hit", textureId, source, target,
-                        elapsedMillis(started))));
+                Dimensions source = pngDimensions(pngBytes);
+                Dimensions target = pngDimensions(cached.get());
+                if (source != null && target != null) {
+                    activityLog.append(logMessage(formatActivity("Cache hit", textureId,
+                            source, target, elapsedMillis(started))));
+                } else {
+                    activityLog.append(logMessage("Cache hit " + textureId
+                            + " in " + elapsedMillis(started) + "ms"));
+                }
                 return;
             }
-            long started = System.nanoTime();
             UpscaleResult result = upscalePng(model, pngBytes);
             cache.store(key, result.bytes());
             upscaled.incrementAndGet();
@@ -292,12 +296,24 @@ public final class UpscaleManager implements AutoCloseable {
                 new Dimensions(width * scale, height * scale));
     }
 
-    private static Dimensions dimensions(byte[] pngBytes) throws IOException {
-        BufferedImage image = ImageIO.read(new ByteArrayInputStream(pngBytes));
-        if (image == null) {
-            throw new IOException("Not a decodable image");
+    private static Dimensions pngDimensions(byte[] pngBytes) {
+        if (pngBytes.length < 24
+                || pngBytes[0] != (byte) 0x89 || pngBytes[1] != 0x50
+                || pngBytes[2] != 0x4E || pngBytes[3] != 0x47
+                || pngBytes[4] != 0x0D || pngBytes[5] != 0x0A
+                || pngBytes[6] != 0x1A || pngBytes[7] != 0x0A) {
+            return null;
         }
-        return new Dimensions(image.getWidth(), image.getHeight());
+        int width = readInt(pngBytes, 16);
+        int height = readInt(pngBytes, 20);
+        return width > 0 && height > 0 ? new Dimensions(width, height) : null;
+    }
+
+    private static int readInt(byte[] bytes, int offset) {
+        return ((bytes[offset] & 0xFF) << 24)
+                | ((bytes[offset + 1] & 0xFF) << 16)
+                | ((bytes[offset + 2] & 0xFF) << 8)
+                | (bytes[offset + 3] & 0xFF);
     }
 
     private static String formatActivity(String action, String textureId,

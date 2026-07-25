@@ -90,7 +90,6 @@ public class ModelSettingsWindow extends AbstractRichWindow<ModelSettingsWindow>
                 if (client != null) {
                     client.execute(() -> {
                         if (selected) {
-                            manager.cache().clear();
                             client.reloadResourcePacks();
                             result.text(Component.literal("Selected " + next + "; reloading textures")
                                     .withStyle(ChatFormatting.GREEN));

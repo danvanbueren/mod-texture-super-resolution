@@ -9,6 +9,8 @@ import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
 
 import java.util.List;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static me.danvb10.mtsr.config.components.RichWindowTypes.ACTIVITY_LOG_WINDOW;
 
@@ -59,10 +61,16 @@ public class ActivityLogWindow extends AbstractRichWindow<ActivityLogWindow> {
                     .append(Component.literal(failed > 0 ? " (" + failed + " failed)" : "").withStyle(ChatFormatting.RED));
         }));
 
+        AtomicLong renderedSequence = new AtomicLong(-1);
+        AtomicReference<String> renderedOutput = new AtomicReference<>("No activity yet");
         window.child(new LiveLabelComponent(() -> {
-            List<String> entries = manager.activityLog().snapshot();
-            String output = entries.isEmpty() ? "No activity yet" : String.join("\n", entries);
-            return Component.literal(output).withStyle(ChatFormatting.DARK_GRAY);
+            var snapshot = manager.activityLog().snapshot(20);
+            if (renderedSequence.getAndSet(snapshot.sequence()) != snapshot.sequence()) {
+                List<String> entries = snapshot.entries();
+                renderedOutput.set(entries.isEmpty()
+                        ? "No activity yet" : String.join("\n", entries));
+            }
+            return Component.literal(renderedOutput.get()).withStyle(ChatFormatting.DARK_GRAY);
         }));
     }
 }

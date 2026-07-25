@@ -90,17 +90,13 @@ public final class EsrganModel implements UpscaleModel {
     private static SessionSetup createSession(OrtEnvironment environment, Path modelFile,
                                               ExecutionProvider requested)
             throws OrtException {
-        OrtSession.SessionOptions options = null;
         try {
             ConfiguredOptions configured = optionsFor(requested);
-            options = configured.options();
-            OrtSession session = environment.createSession(modelFile.toString(), options);
-            options.close();
-            return new SessionSetup(session, configured.provider());
-        } catch (Throwable failure) {
-            if (options != null) {
-                options.close();
+            try (OrtSession.SessionOptions options = configured.options()) {
+                OrtSession session = environment.createSession(modelFile.toString(), options);
+                return new SessionSetup(session, configured.provider());
             }
+        } catch (Throwable failure) {
             if (requested == ExecutionProvider.CPU) {
                 if (failure instanceof OrtException ortException) {
                     throw ortException;
@@ -162,6 +158,9 @@ public final class EsrganModel implements UpscaleModel {
     @Override
     public int[] upscale(int[] argb, int width, int height) throws ModelExecutionException {
         synchronized (inferenceLock) {
+            if (closed) {
+                throw new ModelExecutionException("Model " + name + " is closed");
+            }
             return upscaleLocked(argb, width, height);
         }
     }

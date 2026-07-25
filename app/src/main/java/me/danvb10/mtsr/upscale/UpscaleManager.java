@@ -1,5 +1,6 @@
 package me.danvb10.mtsr.upscale;
 
+import me.danvb10.mtsr.config.MtsrConfig;
 import me.danvb10.mtsr.upscale.cache.CacheKey;
 import me.danvb10.mtsr.upscale.cache.UpscaleCache;
 import me.danvb10.mtsr.upscale.model.ModelExecutionException;
@@ -35,6 +36,7 @@ public final class UpscaleManager implements AutoCloseable {
     private final ModelProvider modelProvider;
     private final UpscaleCache cache;
     private final ExecutorService executor;
+    private final MtsrConfig config;
 
     private final AtomicInteger queued = new AtomicInteger();
     private final AtomicInteger upscaled = new AtomicInteger();
@@ -42,8 +44,14 @@ public final class UpscaleManager implements AutoCloseable {
     private final AtomicInteger failed = new AtomicInteger();
 
     public UpscaleManager(ModelProvider modelProvider, UpscaleCache cache) {
+        this(modelProvider, cache, MtsrConfig.defaults());
+    }
+
+    /** Creates a manager using the supplied persistent configuration. */
+    public UpscaleManager(ModelProvider modelProvider, UpscaleCache cache, MtsrConfig config) {
         this.modelProvider = modelProvider;
         this.cache = cache;
+        this.config = config;
         this.executor = Executors.newSingleThreadExecutor(runnable -> {
             Thread thread = new Thread(runnable, "mtsr-upscale-worker");
             thread.setDaemon(true);
@@ -54,11 +62,16 @@ public final class UpscaleManager implements AutoCloseable {
 
     /** Creates a manager rooted at the game directory's standard mod paths. */
     public static UpscaleManager create(Path gameDirectory) {
+        return create(gameDirectory, MtsrConfig.defaults());
+    }
+
+    /** Creates a manager rooted at the game directory using its configuration. */
+    public static UpscaleManager create(Path gameDirectory, MtsrConfig config) {
         ModelManager models = new ModelManager(
                 gameDirectory.resolve("config/mtsr/models"),
-                gameDirectory.resolve("config/mtsr/runtime"));
+                gameDirectory.resolve("config/mtsr/runtime"), config);
         UpscaleCache cache = new UpscaleCache(gameDirectory.resolve("mtsr/cache"));
-        return new UpscaleManager(models, cache);
+        return new UpscaleManager(models, cache, config);
     }
 
     /**
@@ -122,6 +135,11 @@ public final class UpscaleManager implements AutoCloseable {
 
     public UpscaleCache cache() {
         return cache;
+    }
+
+    /** Returns the configuration used by this pipeline. */
+    public MtsrConfig config() {
+        return config;
     }
 
     public int queuedCount() {

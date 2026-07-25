@@ -1,5 +1,7 @@
 package me.danvb10.mtsr.upscale.detect;
 
+import me.danvb10.mtsr.config.MtsrConfig;
+
 /**
  * Pure decision logic for atlas sprite upscaling. Sprite locations (e.g.
  * {@code modid:block/machine}) name the resource {@code textures/block/machine.png},
@@ -18,10 +20,15 @@ public final class SpriteUpscalePolicy {
 
     /** Returns true if the sprite is a mod-provided sprite eligible for upscaling. */
     public static boolean isEligibleSprite(String namespace, String spritePath) {
+        return isEligibleSprite(namespace, spritePath, MtsrConfig.defaults());
+    }
+
+    /** Returns whether a sprite is eligible under the supplied configuration. */
+    public static boolean isEligibleSprite(String namespace, String spritePath, MtsrConfig config) {
         if (namespace == null || spritePath == null) {
             return false;
         }
-        return TextureDetector.isModTexture(namespace, toTexturePath(spritePath));
+        return TextureDetector.isModTexture(namespace, toTexturePath(spritePath), config);
     }
 
     /**

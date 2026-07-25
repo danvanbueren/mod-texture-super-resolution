@@ -2,6 +2,7 @@ package me.danvb10.mtsr.upscale;
 
 import com.mojang.blaze3d.platform.NativeImage;
 import me.danvb10.mtsr.ClientEntrypoint;
+import me.danvb10.mtsr.config.MtsrConfig;
 import me.danvb10.mtsr.upscale.detect.TextureDetector;
 import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
@@ -33,21 +34,26 @@ public final class TextureReloadHook extends SimpleReloadListener<Map<Identifier
     private static final Logger LOGGER = LoggerFactory.getLogger(ClientEntrypoint.MOD_ID);
 
     private final UpscaleManager upscaleManager;
+    private final MtsrConfig config;
 
-    private TextureReloadHook(UpscaleManager upscaleManager) {
+    private TextureReloadHook(UpscaleManager upscaleManager, MtsrConfig config) {
         this.upscaleManager = upscaleManager;
+        this.config = config;
     }
 
     /** Registers the hook for client resource reloads. */
     public static void register(UpscaleManager upscaleManager) {
         ResourceLoader.get(PackType.CLIENT_RESOURCES).registerReloadListener(
-                ClientEntrypoint.id("texture_upscaler"), new TextureReloadHook(upscaleManager));
+                ClientEntrypoint.id("texture_upscaler"),
+                new TextureReloadHook(upscaleManager,
+                        ClientEntrypoint.config() == null
+                                ? MtsrConfig.defaults() : ClientEntrypoint.config()));
     }
 
     @Override
     protected Map<Identifier, byte[]> prepare(PreparableReloadListener.SharedState state) {
         Map<Identifier, Resource> textures = state.resourceManager().listResources("textures",
-                id -> TextureDetector.isModTexture(id.getNamespace(), id.getPath()));
+                id -> TextureDetector.isModTexture(id.getNamespace(), id.getPath(), config));
         Map<Identifier, byte[]> loaded = new HashMap<>(textures.size());
         for (Map.Entry<Identifier, Resource> entry : textures.entrySet()) {
             try (InputStream stream = entry.getValue().open()) {

@@ -66,7 +66,10 @@ public final class AtlasSpriteUpscaler {
                                              SpriteContents original,
                                              Set<MetadataSectionType<?>> additionalMetadataSections) {
         if (!SpriteUpscalePolicy.isEligibleSprite(
-                spriteLocation.getNamespace(), spriteLocation.getPath())) {
+                spriteLocation.getNamespace(), spriteLocation.getPath(),
+                ClientEntrypoint.config() == null
+                        ? me.danvb10.mtsr.config.MtsrConfig.defaults()
+                        : ClientEntrypoint.config())) {
             return null;
         }
         UpscaleManager manager = ClientEntrypoint.upscaleManager();

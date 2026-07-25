@@ -1,6 +1,7 @@
 package me.danvb10.mtsr.upscale;
 
 import me.danvb10.mtsr.config.MtsrConfig;
+import me.danvb10.mtsr.config.MtsrConfigStore;
 import me.danvb10.mtsr.upscale.cache.CacheKey;
 import me.danvb10.mtsr.upscale.cache.UpscaleCache;
 import me.danvb10.mtsr.upscale.model.ModelExecutionException;
@@ -16,6 +17,9 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.file.Path;
+import java.time.Duration;
+import java.time.LocalTime;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -39,11 +43,14 @@ import java.util.function.BiConsumer;
 public final class UpscaleManager implements AutoCloseable {
 
     private static final Logger LOGGER = LoggerFactory.getLogger("mtsr");
+    private static final DateTimeFormatter LOG_TIME =
+            DateTimeFormatter.ofPattern("HH:mm:ss");
 
     private final ModelProvider modelProvider;
     private final UpscaleCache cache;
     private final ExecutorService executor;
     private final MtsrConfig config;
+    private final ActivityLogBuffer activityLog = new ActivityLogBuffer(300);
     private final Map<WorkKey, List<BiConsumer<String, byte[]>>> inFlight =
             new ConcurrentHashMap<>();
     private final CopyOnWriteArrayList<Runnable> batchCompletionListeners =
@@ -87,7 +94,8 @@ public final class UpscaleManager implements AutoCloseable {
     public static UpscaleManager create(Path gameDirectory, MtsrConfig config) {
         ModelManager models = new ModelManager(
                 gameDirectory.resolve("config/mtsr/models"),
-                gameDirectory.resolve("config/mtsr/runtime"), config);
+                gameDirectory.resolve("config/mtsr/runtime"), config,
+                new MtsrConfigStore(gameDirectory.resolve("config/mtsr/config.json")));
         UpscaleCache cache = new UpscaleCache(gameDirectory.resolve("mtsr/cache"));
         return new UpscaleManager(models, cache, config);
     }
@@ -178,24 +186,38 @@ public final class UpscaleManager implements AutoCloseable {
             Optional<UpscaleModel> maybeModel = modelProvider.activeModel();
             if (maybeModel.isEmpty()) {
                 skipped.incrementAndGet();
+                activityLog.append(logMessage("Skipped " + textureId + " (no active model)"));
                 return;
             }
             UpscaleModel model = maybeModel.get();
             CacheKey key = CacheKey.of(pngBytes, model.name(), model.scaleFactor());
+            long started = System.nanoTime();
             Optional<byte[]> cached = cache.lookup(key);
             if (cached.isPresent()) {
                 cacheHits.incrementAndGet();
                 notifyCallbacks(workKey, textureId, cached.get());
+                Dimensions source = pngDimensions(pngBytes);
+                Dimensions target = pngDimensions(cached.get());
+                if (source != null && target != null) {
+                    activityLog.append(logMessage(formatActivity("Cache hit", textureId,
+                            source, target, elapsedMillis(started))));
+                } else {
+                    activityLog.append(logMessage("Cache hit " + textureId
+                            + " in " + elapsedMillis(started) + "ms"));
+                }
                 return;
             }
-            byte[] result = upscalePng(model, pngBytes);
-            cache.store(key, result);
+            UpscaleResult result = upscalePng(model, pngBytes);
+            cache.store(key, result.bytes());
             upscaled.incrementAndGet();
             success = true;
-            notifyCallbacks(workKey, textureId, result);
+            notifyCallbacks(workKey, textureId, result.bytes());
+            activityLog.append(logMessage(formatActivity("Upscaled", textureId,
+                    result.source(), result.target(), elapsedMillis(started))));
         } catch (IOException | ModelExecutionException | RuntimeException e) {
             failed.incrementAndGet();
             LOGGER.warn("Failed to upscale texture {}", textureId, e);
+            activityLog.append(logMessage("Failed " + textureId + ": " + e.getMessage()));
         } finally {
             if (!success) {
                 inFlight.remove(workKey);
@@ -253,7 +275,7 @@ public final class UpscaleManager implements AutoCloseable {
         }
     }
 
-    private static byte[] upscalePng(UpscaleModel model, byte[] pngBytes)
+    private static UpscaleResult upscalePng(UpscaleModel model, byte[] pngBytes)
             throws IOException, ModelExecutionException {
         BufferedImage source = ImageIO.read(new ByteArrayInputStream(pngBytes));
         if (source == null) {
@@ -269,7 +291,43 @@ public final class UpscaleManager implements AutoCloseable {
         out.setRGB(0, 0, width * scale, height * scale, result, 0, width * scale);
         ByteArrayOutputStream bytes = new ByteArrayOutputStream();
         ImageIO.write(out, "png", bytes);
-        return bytes.toByteArray();
+        return new UpscaleResult(bytes.toByteArray(),
+                new Dimensions(width, height),
+                new Dimensions(width * scale, height * scale));
+    }
+
+    private static Dimensions pngDimensions(byte[] pngBytes) {
+        if (pngBytes.length < 24
+                || pngBytes[0] != (byte) 0x89 || pngBytes[1] != 0x50
+                || pngBytes[2] != 0x4E || pngBytes[3] != 0x47
+                || pngBytes[4] != 0x0D || pngBytes[5] != 0x0A
+                || pngBytes[6] != 0x1A || pngBytes[7] != 0x0A) {
+            return null;
+        }
+        int width = readInt(pngBytes, 16);
+        int height = readInt(pngBytes, 20);
+        return width > 0 && height > 0 ? new Dimensions(width, height) : null;
+    }
+
+    private static int readInt(byte[] bytes, int offset) {
+        return ((bytes[offset] & 0xFF) << 24)
+                | ((bytes[offset + 1] & 0xFF) << 16)
+                | ((bytes[offset + 2] & 0xFF) << 8)
+                | (bytes[offset + 3] & 0xFF);
+    }
+
+    private static String formatActivity(String action, String textureId,
+                                         Dimensions source, Dimensions target, long millis) {
+        return action + " " + textureId + " (" + source.width() + "x" + source.height()
+                + " -> " + target.width() + "x" + target.height() + ") in " + millis + "ms";
+    }
+
+    private static String logMessage(String message) {
+        return "[" + LocalTime.now().format(LOG_TIME) + "] " + message;
+    }
+
+    private static long elapsedMillis(long started) {
+        return Duration.ofNanos(System.nanoTime() - started).toMillis();
     }
 
     public ModelProvider modelProvider() {
@@ -278,6 +336,11 @@ public final class UpscaleManager implements AutoCloseable {
 
     public UpscaleCache cache() {
         return cache;
+    }
+
+    /** Returns the bounded, thread-safe activity log. */
+    public ActivityLogBuffer activityLog() {
+        return activityLog;
     }
 
     /** Returns the configuration used by this pipeline. */
@@ -342,5 +405,11 @@ public final class UpscaleManager implements AutoCloseable {
         private static WorkKey of(String textureId, byte[] pngBytes) {
             return new WorkKey(textureId, CacheKey.contentHash(pngBytes));
         }
+    }
+
+    private record Dimensions(int width, int height) {
+    }
+
+    private record UpscaleResult(byte[] bytes, Dimensions source, Dimensions target) {
     }
 }

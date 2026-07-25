@@ -6,6 +6,7 @@ import io.wispforest.owo.ui.core.Insets;
 import me.danvb10.mtsr.ClientEntrypoint;
 import me.danvb10.mtsr.config.ConfigScreen;
 import me.danvb10.mtsr.upscale.UpscaleManager;
+import net.minecraft.client.Minecraft;
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
 
@@ -39,6 +40,18 @@ public class QuickActionsWindow extends AbstractRichWindow<QuickActionsWindow> {
                     int removed = manager.cache().clear();
                     resultLabel.text(Component
                             .literal("Removed " + removed + " cached texture" + (removed == 1 ? "" : "s"))
+                            .withStyle(ChatFormatting.GRAY));
+                }).margins(Insets.bottom(4)));
+
+        window.child(
+                UIComponents.button(Component.literal("Clear cache & reload textures"), button -> {
+                    int removed = manager.cache().clear();
+                    Minecraft client = Minecraft.getInstance();
+                    if (client != null) {
+                        client.reloadResourcePacks();
+                    }
+                    resultLabel.text(Component
+                            .literal("Removed " + removed + " entries; reloading textures")
                             .withStyle(ChatFormatting.GRAY));
                 }).margins(Insets.bottom(4)));
 

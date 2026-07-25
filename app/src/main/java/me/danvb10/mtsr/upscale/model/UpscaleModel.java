@@ -1,5 +1,7 @@
 package me.danvb10.mtsr.upscale.model;
 
+import me.danvb10.mtsr.config.ExecutionProvider;
+
 /**
  * A super-resolution model that upscales raster images by a fixed integer factor.
  * Pixel data is exchanged as ARGB packed integers in row-major order.
@@ -11,6 +13,11 @@ public interface UpscaleModel extends AutoCloseable {
 
     /** The fixed integer upscale factor of this model (e.g. 4 for a 4x ESRGAN). */
     int scaleFactor();
+
+    /** Returns the execution provider actually used by this model. */
+    default ExecutionProvider executionProvider() {
+        return ExecutionProvider.CPU;
+    }
 
     /**
      * Upscales the given image.

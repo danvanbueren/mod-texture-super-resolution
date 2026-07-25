@@ -107,10 +107,24 @@ public final class UpscaleManager implements AutoCloseable {
      */
     public void queueTexture(String textureId, byte[] pngBytes,
                              BiConsumer<String, byte[]> onUpscaled) {
+        queueInternal(textureId, pngBytes, onUpscaled, null);
+    }
+
+    /** Queues an animated texture for independent per-frame upscaling. */
+    public void queueAnimatedTexture(String textureId, byte[] pngBytes,
+                                     int frameWidth, int frameHeight,
+                                     BiConsumer<String, byte[]> onUpscaled) {
+        queueInternal(textureId, pngBytes, onUpscaled,
+                new AnimationSpec(frameWidth, frameHeight));
+    }
+
+    private void queueInternal(String textureId, byte[] pngBytes,
+                               BiConsumer<String, byte[]> onUpscaled,
+                               AnimationSpec animation) {
         if (closed) {
             return;
         }
-        WorkKey workKey = WorkKey.of(textureId, pngBytes);
+        WorkKey workKey = WorkKey.of(textureId, pngBytes, animation);
         List<BiConsumer<String, byte[]>> callbacks = new CopyOnWriteArrayList<>();
         callbacks.add(onUpscaled);
         AtomicBoolean owner = new AtomicBoolean();
@@ -139,7 +153,7 @@ public final class UpscaleManager implements AutoCloseable {
         }
         queued.incrementAndGet();
         try {
-            executor.execute(() -> process(textureId, pngBytes, workKey, batch));
+            executor.execute(() -> process(textureId, pngBytes, workKey, batch, animation));
         } catch (RuntimeException e) {
             inFlight.remove(workKey);
             finish(batch, false);
@@ -180,7 +194,7 @@ public final class UpscaleManager implements AutoCloseable {
     }
 
     private void process(String textureId, byte[] pngBytes, WorkKey workKey,
-                         BatchState batch) {
+                         BatchState batch, AnimationSpec animation) {
         boolean success = false;
         try {
             Optional<UpscaleModel> maybeModel = modelProvider.activeModel();
@@ -190,7 +204,8 @@ public final class UpscaleManager implements AutoCloseable {
                 return;
             }
             UpscaleModel model = maybeModel.get();
-            CacheKey key = CacheKey.of(pngBytes, model.name(), model.scaleFactor());
+            CacheKey key = CacheKey.of(pngBytes, model.name(), model.scaleFactor(),
+                    animation != null);
             long started = System.nanoTime();
             Optional<byte[]> cached = cache.lookup(key);
             if (cached.isPresent()) {
@@ -207,7 +222,9 @@ public final class UpscaleManager implements AutoCloseable {
                 }
                 return;
             }
-            UpscaleResult result = upscalePng(model, pngBytes);
+            UpscaleResult result = animation == null
+                    ? upscalePng(model, pngBytes)
+                    : upscaleAnimatedPng(model, pngBytes, animation);
             cache.store(key, result.bytes());
             upscaled.incrementAndGet();
             success = true;
@@ -294,6 +311,42 @@ public final class UpscaleManager implements AutoCloseable {
         return new UpscaleResult(bytes.toByteArray(),
                 new Dimensions(width, height),
                 new Dimensions(width * scale, height * scale));
+    }
+
+    private static UpscaleResult upscaleAnimatedPng(UpscaleModel model, byte[] pngBytes,
+                                                    AnimationSpec animation)
+            throws IOException, ModelExecutionException {
+        BufferedImage source = ImageIO.read(new ByteArrayInputStream(pngBytes));
+        if (source == null) {
+            throw new IOException("Not a decodable image");
+        }
+        AnimatedFrameLayout layout;
+        try {
+            layout = AnimatedFrameLayout.of(source.getWidth(), source.getHeight(),
+                    animation.frameWidth(), animation.frameHeight());
+        } catch (IllegalArgumentException e) {
+            throw new IOException(e.getMessage(), e);
+        }
+        int scale = model.scaleFactor();
+        BufferedImage out = new BufferedImage(layout.outputWidth(scale),
+                layout.outputHeight(scale), BufferedImage.TYPE_INT_ARGB);
+        for (int row = 0; row < layout.rows(); row++) {
+            for (int column = 0; column < layout.columns(); column++) {
+                int[] argb = source.getRGB(column * layout.frameWidth(),
+                        row * layout.frameHeight(), layout.frameWidth(),
+                        layout.frameHeight(), null, 0, layout.frameWidth());
+                int[] result = model.upscale(argb, layout.frameWidth(), layout.frameHeight());
+                out.setRGB(column * layout.frameWidth() * scale,
+                        row * layout.frameHeight() * scale,
+                        layout.frameWidth() * scale, layout.frameHeight() * scale,
+                        result, 0, layout.frameWidth() * scale);
+            }
+        }
+        ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+        ImageIO.write(out, "png", bytes);
+        return new UpscaleResult(bytes.toByteArray(),
+                new Dimensions(source.getWidth(), source.getHeight()),
+                new Dimensions(out.getWidth(), out.getHeight()));
     }
 
     private static Dimensions pngDimensions(byte[] pngBytes) {
@@ -401,10 +454,14 @@ public final class UpscaleManager implements AutoCloseable {
         private boolean notified;
     }
 
-    private record WorkKey(String textureId, String sourceHash) {
-        private static WorkKey of(String textureId, byte[] pngBytes) {
-            return new WorkKey(textureId, CacheKey.contentHash(pngBytes));
+    private record WorkKey(String textureId, String sourceHash,
+                           AnimationSpec animation) {
+        private static WorkKey of(String textureId, byte[] pngBytes, AnimationSpec animation) {
+            return new WorkKey(textureId, CacheKey.contentHash(pngBytes), animation);
         }
+    }
+
+    private record AnimationSpec(int frameWidth, int frameHeight) {
     }
 
     private record Dimensions(int width, int height) {

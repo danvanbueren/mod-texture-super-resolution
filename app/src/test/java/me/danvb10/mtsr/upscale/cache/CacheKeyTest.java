@@ -22,6 +22,7 @@ class CacheKeyTest {
         assertNotEquals(base, CacheKey.of(BYTES_B, "model", 4));
         assertNotEquals(base, CacheKey.of(BYTES_A, "other", 4));
         assertNotEquals(base, CacheKey.of(BYTES_A, "model", 2));
+        assertNotEquals(base, CacheKey.of(BYTES_A, "model", 4, true));
     }
 
     @Test

@@ -84,8 +84,9 @@ public final class AtlasSpriteUpscaler {
         } catch (IOException e) {
             return null;
         }
-        if (metadata.getSection(AnimationMetadataSection.TYPE).isPresent()) {
-            // Animated sprites need their frame metadata rescaled; skip for now.
+        Optional<AnimationMetadataSection> animation =
+                metadata.getSection(AnimationMetadataSection.TYPE);
+        if (animation.isPresent() && !ClientEntrypoint.config().upscaleAnimatedTextures()) {
             return null;
         }
 
@@ -97,11 +98,30 @@ public final class AtlasSpriteUpscaler {
         }
 
         UpscaleModel model = maybeModel.get();
-        CacheKey key = CacheKey.of(pngBytes, model.name(), model.scaleFactor());
+        FrameSize originalFrameSize = animation
+                .map(value -> value.calculateFrameSize(original.width(), original.height()))
+                .orElse(null);
+        AnimatedFrameLayout frameLayout = null;
+        if (originalFrameSize != null) {
+            try {
+                frameLayout = AnimatedFrameLayout.of(original.width(), original.height(),
+                        originalFrameSize.width(), originalFrameSize.height());
+            } catch (IllegalArgumentException e) {
+                LOGGER.warn("Rejecting animated sprite {} with invalid frame dimensions", spriteLocation);
+                return null;
+            }
+        }
+        boolean animated = frameLayout != null;
+        CacheKey key = CacheKey.of(pngBytes, model.name(), model.scaleFactor(), animated);
         Optional<byte[]> cached = manager.cache().lookup(key);
         if (cached.isEmpty()) {
             // Stitching is synchronous; queue for the next reload instead of blocking.
-            manager.queueTexture(spriteLocation.toString(), pngBytes, (id, png) -> { });
+            if (frameLayout == null) {
+                manager.queueTexture(spriteLocation.toString(), pngBytes, (id, png) -> { });
+            } else {
+                manager.queueAnimatedTexture(spriteLocation.toString(), pngBytes,
+                        frameLayout.frameWidth(), frameLayout.frameHeight(), (id, png) -> { });
+            }
             return null;
         }
 
@@ -121,14 +141,33 @@ public final class AtlasSpriteUpscaler {
             upscaledImage.close();
             return null;
         }
+        if (frameLayout != null) {
+            try {
+                AnimatedFrameLayout.of(upscaledImage.getWidth(), upscaledImage.getHeight(),
+                        frameLayout.frameWidth() * model.scaleFactor(),
+                        frameLayout.frameHeight() * model.scaleFactor());
+            } catch (IllegalArgumentException e) {
+                upscaledImage.close();
+                LOGGER.warn("Cached animated upscale for {} has invalid frame layout", spriteLocation);
+                return null;
+            }
+        }
 
         Optional<TextureMetadataSection> textureInfo =
                 metadata.getSection(TextureMetadataSection.TYPE);
         List<MetadataSectionType.WithValue<?>> additionalMetadata =
                 metadata.getTypedSections(additionalMetadataSections);
-        FrameSize frameSize = new FrameSize(upscaledImage.getWidth(), upscaledImage.getHeight());
+        FrameSize frameSize = frameLayout == null
+                ? new FrameSize(upscaledImage.getWidth(), upscaledImage.getHeight())
+                : new FrameSize(frameLayout.frameWidth() * model.scaleFactor(),
+                frameLayout.frameHeight() * model.scaleFactor());
+        Optional<AnimationMetadataSection> scaledAnimation = animation.map(value ->
+                new AnimationMetadataSection(value.frames(),
+                        value.frameWidth().map(width -> width * model.scaleFactor()),
+                        value.frameHeight().map(height -> height * model.scaleFactor()),
+                        value.defaultFrameTime(), value.interpolatedFrames()));
         original.close();
         return new SpriteContents(spriteLocation, frameSize, upscaledImage,
-                Optional.empty(), additionalMetadata, textureInfo);
+                scaledAnimation, additionalMetadata, textureInfo);
     }
 }

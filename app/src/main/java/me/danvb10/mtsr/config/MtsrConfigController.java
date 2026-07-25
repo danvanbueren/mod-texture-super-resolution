@@ -25,8 +25,18 @@ public final class MtsrConfigController {
 
     /** Applies a mutation, validates it, and persists the result. */
     public boolean update(Consumer<MtsrConfig> mutation) {
+        mutate(mutation);
+        return persist();
+    }
+
+    /** Applies a mutation and validates it without writing to disk. */
+    public void mutate(Consumer<MtsrConfig> mutation) {
         mutation.accept(config);
         config.validate();
+    }
+
+    /** Persists the current validated configuration. */
+    public boolean persist() {
         try {
             store.save(config);
             return true;

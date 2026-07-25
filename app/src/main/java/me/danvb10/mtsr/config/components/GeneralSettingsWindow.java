@@ -3,6 +3,9 @@ package me.danvb10.mtsr.config.components;
 import io.wispforest.owo.ui.component.UIComponents;
 import io.wispforest.owo.ui.component.LabelComponent;
 import io.wispforest.owo.ui.component.TextBoxComponent;
+import io.wispforest.owo.ui.component.DiscreteSliderComponent;
+import io.wispforest.owo.ui.container.FlowLayout;
+import io.wispforest.owo.ui.container.UIContainers;
 import io.wispforest.owo.ui.core.Sizing;
 import me.danvb10.mtsr.ClientEntrypoint;
 import me.danvb10.mtsr.config.ConfigScreen;
@@ -13,6 +16,10 @@ import me.danvb10.mtsr.upscale.UpscaleManager;
 import me.danvb10.mtsr.upscale.detect.TextureDetector;
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
+
+import java.util.Set;
+import java.util.LinkedHashSet;
+import java.util.function.IntConsumer;
 
 import static me.danvb10.mtsr.config.components.RichWindowTypes.GENERAL_SETTINGS_WINDOW;
 
@@ -54,38 +61,59 @@ public class GeneralSettingsWindow extends AbstractRichWindow<GeneralSettingsWin
                 .withStyle(ChatFormatting.GRAY)));
         TextBoxComponent namespace = UIComponents.textBox(Sizing.fixed(140));
         LabelComponent namespaceResult = UIComponents.label(Component.empty());
+        FlowLayout namespaceList = UIContainers.verticalFlow(Sizing.fill(), Sizing.content());
+        Runnable[] refreshNamespaces = new Runnable[1];
         window.child(namespace);
         window.child(UIComponents.button(Component.literal("Add namespace"), button -> {
             if (controller.addExcludedNamespace(namespace.getValue())) {
                 namespace.setValue("");
                 namespaceResult.text(Component.literal("Saved").withStyle(ChatFormatting.GREEN));
+                refreshNamespaces[0].run();
             } else {
                 namespaceResult.text(Component.literal("Enter a namespace").withStyle(ChatFormatting.YELLOW));
             }
         }));
-        for (String excluded : config.extraExcludedNamespaces()) {
-            window.child(UIComponents.button(Component.literal("Remove " + excluded), button -> {
-                controller.removeExcludedNamespace(excluded);
-                namespaceResult.text(Component.literal("Saved").withStyle(ChatFormatting.GREEN));
-            }));
-        }
+        window.child(new LiveLabelComponent(() -> Component.literal("Effective: "
+                + String.join(", ", TextureDetector.excludedNamespaces(config)))
+                .withStyle(ChatFormatting.WHITE)));
+        window.child(namespaceList);
         window.child(namespaceResult);
+        refreshNamespaces[0] = () -> {
+            namespaceList.clearChildren();
+            Set<String> extras = new LinkedHashSet<>(config.extraExcludedNamespaces());
+            for (String excluded : extras) {
+                namespaceList.child(UIComponents.button(Component.literal("Remove " + excluded),
+                        button -> {
+                            controller.removeExcludedNamespace(excluded);
+                            namespaceResult.text(Component.literal("Saved")
+                                    .withStyle(ChatFormatting.GREEN));
+                            refreshNamespaces[0].run();
+                        }));
+            }
+        };
+        refreshNamespaces[0].run();
 
         window.child(UIComponents.label(Component.literal(
                 "Tile size (restart required):").withStyle(ChatFormatting.GRAY)));
+        DiscreteSliderComponent overlapSlider = discreteSlider(config.tileOverlap(), 0,
+                config.tileSize() / 2, value -> {
+                    controller.mutate(c -> c.tileOverlap(value));
+                }, controller);
         window.child(discreteSlider(config.tileSize(), MtsrConfig.MIN_TILE_SIZE,
-                MtsrConfig.MAX_TILE_SIZE, value -> controller.update(c -> c.tileSize(value))));
+                MtsrConfig.MAX_TILE_SIZE, value -> {
+                    controller.mutate(c -> c.tileSize(value));
+                    overlapSlider.setFromDiscreteValue(config.tileOverlap());
+                }, controller));
 
         window.child(UIComponents.label(Component.literal(
                 "Tile overlap (restart required):").withStyle(ChatFormatting.GRAY)));
-        window.child(discreteSlider(config.tileOverlap(), 0, MtsrConfig.MAX_TILE_SIZE / 2,
-                value -> controller.update(c -> c.tileOverlap(value))));
+        window.child(overlapSlider);
 
         window.child(UIComponents.label(Component.literal(
                 "Worker threads (restart required):").withStyle(ChatFormatting.GRAY)));
         int processors = Math.max(1, Runtime.getRuntime().availableProcessors());
         window.child(discreteSlider(config.workerThreads(), 1, processors,
-                value -> controller.update(c -> c.workerThreads(value))));
+                value -> controller.mutate(c -> c.workerThreads(value)), controller));
 
         window.child(UIComponents.label(Component.literal(
                 "Execution provider (restart required):").withStyle(ChatFormatting.GRAY)));
@@ -110,12 +138,14 @@ public class GeneralSettingsWindow extends AbstractRichWindow<GeneralSettingsWin
                 .withStyle(ChatFormatting.YELLOW)));
     }
 
-    private static io.wispforest.owo.ui.component.DiscreteSliderComponent discreteSlider(
-            int current, int minimum, int maximum, java.util.function.IntConsumer consumer) {
-        var slider = UIComponents.discreteSlider(Sizing.fill(), minimum, maximum)
+    private static DiscreteSliderComponent discreteSlider(
+            int current, int minimum, int maximum, IntConsumer consumer,
+            MtsrConfigController controller) {
+        DiscreteSliderComponent slider = UIComponents.discreteSlider(Sizing.fill(), minimum, maximum)
                 .setFromDiscreteValue(current)
                 .snap(true);
         slider.onChanged().subscribe(value -> consumer.accept((int) Math.round(value)));
+        slider.slideEnd().subscribe(controller::persist);
         return slider;
     }
 }

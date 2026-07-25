@@ -67,10 +67,15 @@ public final class TextureReloadHook extends SimpleReloadListener<Map<Identifier
     protected void apply(Map<Identifier, byte[]> textures,
                          PreparableReloadListener.SharedState state) {
         LOGGER.info("Detected {} mod textures for upscaling", textures.size());
-        for (Map.Entry<Identifier, byte[]> entry : textures.entrySet()) {
-            Identifier id = entry.getKey();
-            upscaleManager.queueTexture(id.toString(), entry.getValue(),
-                    (textureId, upscaledPng) -> registerUpscaled(id, upscaledPng));
+        upscaleManager.beginBatch();
+        try {
+            for (Map.Entry<Identifier, byte[]> entry : textures.entrySet()) {
+                Identifier id = entry.getKey();
+                upscaleManager.queueTexture(id.toString(), entry.getValue(),
+                        (textureId, upscaledPng) -> registerUpscaled(id, upscaledPng));
+            }
+        } finally {
+            upscaleManager.endBatch();
         }
     }
 

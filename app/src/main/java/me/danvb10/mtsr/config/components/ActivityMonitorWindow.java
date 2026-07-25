@@ -40,6 +40,7 @@ public class ActivityMonitorWindow extends AbstractRichWindow<ActivityMonitorWin
                 .child(statLabel("Queued", UpscaleManager::queuedCount))
                 .child(statLabel("Upscaled", UpscaleManager::upscaledCount))
                 .child(statLabel("Cache hits", UpscaleManager::cacheHitCount))
+                .child(statLabel("Skipped", UpscaleManager::skippedCount))
                 .child(statLabel("Failed", UpscaleManager::failedCount));
     }
 

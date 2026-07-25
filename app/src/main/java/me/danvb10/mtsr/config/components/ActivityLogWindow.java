@@ -47,10 +47,13 @@ public class ActivityLogWindow extends AbstractRichWindow<ActivityLogWindow> {
         window.child(new LiveLabelComponent(() -> {
             int total = manager.queuedCount();
             int done = manager.upscaledCount() + manager.cacheHitCount();
+            int skipped = manager.skippedCount();
             int failed = manager.failedCount();
             return Component.literal("Processed: ")
                     .withStyle(ChatFormatting.GRAY)
                     .append(Component.literal(done + "/" + total + " completed").withStyle(ChatFormatting.WHITE))
+                    .append(Component.literal(skipped > 0 ? " (" + skipped + " skipped)" : "")
+                            .withStyle(ChatFormatting.YELLOW))
                     .append(Component.literal(failed > 0 ? " (" + failed + " failed)" : "").withStyle(ChatFormatting.RED));
         }));
 
@@ -65,4 +68,3 @@ public class ActivityLogWindow extends AbstractRichWindow<ActivityLogWindow> {
                         .withStyle(ChatFormatting.DARK_GRAY)));
     }
 }
-

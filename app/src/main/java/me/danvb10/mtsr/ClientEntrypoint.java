@@ -3,6 +3,7 @@ package me.danvb10.mtsr;
 import me.danvb10.mtsr.config.MtsrConfig;
 import me.danvb10.mtsr.config.MtsrConfigStore;
 import me.danvb10.mtsr.upscale.TextureReloadHook;
+import me.danvb10.mtsr.upscale.UpscaleCompletionToast;
 import me.danvb10.mtsr.upscale.UpscaleManager;
 import me.danvb10.mtsr.upscale.model.ModelDownloader;
 import net.fabricmc.api.EnvType;
@@ -42,6 +43,7 @@ public class ClientEntrypoint implements ClientModInitializer {
 		Path gameDir = FabricLoader.getInstance().getGameDir();
 		config = new MtsrConfigStore(gameDir.resolve("config/mtsr/config.json")).load();
 		upscaleManager = UpscaleManager.create(gameDir, config);
+		UpscaleCompletionToast.register(upscaleManager);
 		new ModelDownloader(gameDir.resolve("config/mtsr/models")).downloadIfMissing();
 		TextureReloadHook.register(upscaleManager);
 	}

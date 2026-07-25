@@ -21,7 +21,7 @@ public class ClientEntrypoint implements ClientModInitializer {
 	public static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
 
 	private static UpscaleManager upscaleManager;
-	private static MtsrConfig config;
+	private static MtsrConfig config = MtsrConfig.defaults();
 
 	public static Identifier id(String path) {
 		return Identifier.fromNamespaceAndPath(MOD_ID, path);

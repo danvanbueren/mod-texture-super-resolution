@@ -2,6 +2,8 @@ package me.danvb10.mtsr.config;
 
 import org.junit.jupiter.api.Test;
 
+import java.util.Set;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -44,11 +46,11 @@ class MtsrConfigTest {
     @Test
     void setsAreCopiedAndSanitizedOnValidation() {
         MtsrConfig config = new MtsrConfig();
-        config.extraExcludedNamespaces(java.util.Set.of(" optifine ", ""));
-        config.forceIncludedPaths(java.util.Set.of("mod:path"));
+        config.extraExcludedNamespaces(Set.of(" optifine ", ""));
+        config.forceIncludedPaths(Set.of("mod:path"));
         config.validate();
 
-        assertEquals(java.util.Set.of("optifine"), config.extraExcludedNamespaces());
-        assertEquals(java.util.Set.of("mod:path"), config.forceIncludedPaths());
+        assertEquals(Set.of("optifine"), config.extraExcludedNamespaces());
+        assertEquals(Set.of("mod:path"), config.forceIncludedPaths());
     }
 }

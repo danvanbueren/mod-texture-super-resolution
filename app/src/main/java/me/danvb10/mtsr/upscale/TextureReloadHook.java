@@ -45,9 +45,7 @@ public final class TextureReloadHook extends SimpleReloadListener<Map<Identifier
     public static void register(UpscaleManager upscaleManager) {
         ResourceLoader.get(PackType.CLIENT_RESOURCES).registerReloadListener(
                 ClientEntrypoint.id("texture_upscaler"),
-                new TextureReloadHook(upscaleManager,
-                        ClientEntrypoint.config() == null
-                                ? MtsrConfig.defaults() : ClientEntrypoint.config()));
+                new TextureReloadHook(upscaleManager, ClientEntrypoint.config()));
     }
 
     @Override

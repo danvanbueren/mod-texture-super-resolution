@@ -5,6 +5,7 @@ import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -40,8 +41,8 @@ class MtsrConfigStoreTest {
     void savesAndLoadsAllSettings() throws Exception {
         Path file = tempDir.resolve("config.json");
         MtsrConfig expected = MtsrConfig.defaults();
-        expected.extraExcludedNamespaces(java.util.Set.of("optifine"));
-        expected.forceIncludedPaths(java.util.Set.of("somemod:models/"));
+        expected.extraExcludedNamespaces(Set.of("optifine"));
+        expected.forceIncludedPaths(Set.of("somemod:models/"));
         expected.tileSize(256);
         expected.tileOverlap(16);
         expected.workerThreads(1);

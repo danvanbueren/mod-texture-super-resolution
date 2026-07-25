@@ -2,7 +2,8 @@ package me.danvb10.mtsr.upscale.detect;
 
 import me.danvb10.mtsr.config.MtsrConfig;
 
-import java.util.HashSet;
+import java.util.Collections;
+import java.util.LinkedHashSet;
 import java.util.Set;
 
 /**
@@ -39,15 +40,18 @@ public final class TextureDetector {
         }
         String resourcePath = namespace + ":" + path;
         if (config.forceIncludedPaths().stream().anyMatch(resourcePath::startsWith)) {
-            return true;
+            return path.endsWith(".png");
         }
         return path.startsWith("textures/") && path.endsWith(".png");
     }
 
     /** Returns all built-in and configured excluded namespaces. */
     public static Set<String> excludedNamespaces(MtsrConfig config) {
-        Set<String> excluded = new HashSet<>(EXCLUDED_NAMESPACES);
-        excluded.addAll(config.extraExcludedNamespaces());
-        return Set.copyOf(excluded);
+        Set<String> excluded = new LinkedHashSet<>();
+        excluded.add("minecraft");
+        excluded.add("realms");
+        excluded.add("mtsr");
+        config.extraExcludedNamespaces().stream().sorted().forEach(excluded::add);
+        return Collections.unmodifiableSet(excluded);
     }
 }

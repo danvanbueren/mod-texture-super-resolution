@@ -44,6 +44,9 @@ dependencies {
 	compileOnly "com.microsoft.onnxruntime:onnxruntime:${project.onnxruntime_version}"
 	localRuntime "com.microsoft.onnxruntime:onnxruntime:${project.onnxruntime_version}"
 
+	// Dev-only runtime dependency (loaded during `runClient` testing, not bundled or required in release JAR)
+	localRuntime "maven.modrinth:fBXt3AlC:fbk5CTBF"
+
 	testImplementation platform("org.junit:junit-bom:5.10.2")
 	testImplementation "org.junit.jupiter:junit-jupiter"
 	testRuntimeOnly "org.junit.platform:junit-platform-launcher"

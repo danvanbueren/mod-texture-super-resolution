@@ -93,6 +93,7 @@ public class ModelSettingsWindow extends AbstractRichWindow<ModelSettingsWindow>
                             client.reloadResourcePacks();
                             result.text(Component.literal("Selected " + next + "; reloading textures")
                                     .withStyle(ChatFormatting.GREEN));
+                            requestScreenRefresh();
                         } else {
                             result.text(Component.literal("Failed to load " + next)
                                     .withStyle(ChatFormatting.RED));

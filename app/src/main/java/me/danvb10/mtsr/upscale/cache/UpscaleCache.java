@@ -38,6 +38,20 @@ public final class UpscaleCache {
         }
     }
 
+    /** Evicts a specific cache entry by key if it exists. Returns true if removed. */
+    public boolean evict(CacheKey key) {
+        Path file = cacheDirectory.resolve(key.fileName());
+        if (Files.isRegularFile(file)) {
+            try {
+                Files.delete(file);
+                return true;
+            } catch (IOException e) {
+                LOGGER.warn("Failed to evict cache entry {}", file, e);
+            }
+        }
+        return false;
+    }
+
     /** Atomically stores an upscaled PNG under the key. */
     public void store(CacheKey key, byte[] pngBytes) {
         try {

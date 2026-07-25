@@ -41,6 +41,7 @@ public class QuickActionsWindow extends AbstractRichWindow<QuickActionsWindow> {
                     resultLabel.text(Component
                             .literal("Removed " + removed + " cached texture" + (removed == 1 ? "" : "s"))
                             .withStyle(ChatFormatting.GRAY));
+                    requestScreenRefresh();
                 }).margins(Insets.bottom(4)));
 
         window.child(
@@ -53,6 +54,7 @@ public class QuickActionsWindow extends AbstractRichWindow<QuickActionsWindow> {
                     resultLabel.text(Component
                             .literal("Removed " + removed + " entries; reloading textures")
                             .withStyle(ChatFormatting.GRAY));
+                    requestScreenRefresh();
                 }).margins(Insets.bottom(4)));
 
         window.child(resultLabel);

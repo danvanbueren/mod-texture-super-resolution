@@ -40,6 +40,7 @@ public abstract class AbstractRichWindow<SELF extends AbstractRichWindow<SELF>> 
     }
 
     public UIComponent build() {
+        richWindow.clearChildren();
         richWindow
                 .setWindowName(windowName())
                 .setWindowTooltip(windowTooltip());
@@ -70,5 +71,12 @@ public abstract class AbstractRichWindow<SELF extends AbstractRichWindow<SELF>> 
     public SELF setFullscreen(boolean fullscreen) {
         this.fullscreen = fullscreen;
         return (SELF) this;
+    }
+
+    protected void requestScreenRefresh() {
+        net.minecraft.client.Minecraft client = net.minecraft.client.Minecraft.getInstance();
+        if (client != null && client.screen instanceof me.danvb10.mtsr.config.RefreshableScreen refreshable) {
+            refreshable.requestRefresh();
+        }
     }
 }

@@ -15,9 +15,13 @@ import org.jetbrains.annotations.NotNull;
 import static me.danvb10.mtsr.ClientEntrypoint.LOGGER;
 import static me.danvb10.mtsr.config.components.RichWindowTypes.*;
 
-public class ConfigScreen extends BaseOwoScreen<FlowLayout> {
+public class ConfigScreen extends BaseOwoScreen<FlowLayout> implements RefreshableScreen {
 
     private final Screen parent;
+    private volatile boolean needsRefresh;
+    private int lastTotalCount = -1;
+    private int lastUpscaledCount = -1;
+    private Runnable batchListener;
 
     private GeneralSettingsWindow generalSettingsWindow;
     private ModelSettingsWindow modelSettingsWindow;
@@ -30,6 +34,7 @@ public class ConfigScreen extends BaseOwoScreen<FlowLayout> {
     public ConfigScreen(Screen parent) {
         super();
         this.parent = parent;
+        this.batchListener = this::requestRefresh;
 
         this.generalSettingsWindow = new GeneralSettingsWindow(this);
         this.modelSettingsWindow = new ModelSettingsWindow(this);
@@ -37,7 +42,47 @@ public class ConfigScreen extends BaseOwoScreen<FlowLayout> {
         this.textureManagerWindow = new TextureManagerWindow(this);
         this.activityMonitorWindow = new ActivityMonitorWindow(this);
         this.activityLogWindow = new ActivityLogWindow(this);
+    }
 
+    @Override
+    public void requestRefresh() {
+        this.needsRefresh = true;
+    }
+
+    @Override
+    protected void init() {
+        super.init();
+        me.danvb10.mtsr.upscale.UpscaleManager manager = me.danvb10.mtsr.ClientEntrypoint.upscaleManager();
+        if (manager != null) {
+            manager.addBatchCompletionListener(batchListener);
+        }
+    }
+
+    @Override
+    public void tick() {
+        super.tick();
+        me.danvb10.mtsr.upscale.UpscaleManager manager = me.danvb10.mtsr.ClientEntrypoint.upscaleManager();
+        if (manager != null) {
+            int total = manager.detectedTextureRegistry().totalCount();
+            int upscaled = manager.detectedTextureRegistry().upscaledCount();
+            if (lastTotalCount != -1 && (total != lastTotalCount || upscaled != lastUpscaledCount)) {
+                needsRefresh = true;
+            }
+            lastTotalCount = total;
+            lastUpscaledCount = upscaled;
+        }
+        if (needsRefresh) {
+            needsRefresh = false;
+            if (this.minecraft != null && this.minecraft.screen == this) {
+                this.generalSettingsWindow = new GeneralSettingsWindow(this);
+                this.modelSettingsWindow = new ModelSettingsWindow(this);
+                this.quickActionsWindow = new QuickActionsWindow(this);
+                this.textureManagerWindow = new TextureManagerWindow(this);
+                this.activityMonitorWindow = new ActivityMonitorWindow(this);
+                this.activityLogWindow = new ActivityLogWindow(this);
+                this.init(this.width, this.height);
+            }
+        }
     }
 
     // Create adapter
@@ -153,6 +198,10 @@ public class ConfigScreen extends BaseOwoScreen<FlowLayout> {
     // Ensure redirection to last screen on close
     @Override
     public void onClose() {
+        me.danvb10.mtsr.upscale.UpscaleManager manager = me.danvb10.mtsr.ClientEntrypoint.upscaleManager();
+        if (manager != null && batchListener != null) {
+            manager.removeBatchCompletionListener(batchListener);
+        }
         if (this.minecraft == null) {
             LOGGER.error("Cannot close ConfigScreen: Minecraft is null");
             throw new IllegalStateException("Minecraft is null while closing ConfigScreen");

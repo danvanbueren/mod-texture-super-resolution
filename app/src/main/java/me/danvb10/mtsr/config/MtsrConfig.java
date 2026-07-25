@@ -19,6 +19,9 @@ public final class MtsrConfig {
 
     private Set<String> extraExcludedNamespaces = new LinkedHashSet<>();
     private Set<String> forceIncludedPaths = new LinkedHashSet<>();
+    private Set<String> disabledNamespaces = new LinkedHashSet<>();
+    private Set<String> disabledTextureIds = new LinkedHashSet<>();
+    private Set<String> taggedForRegenTextureIds = new LinkedHashSet<>();
     private int tileSize = ModelManager.DEFAULT_TILE_SIZE;
     private int tileOverlap = ModelManager.DEFAULT_TILE_OVERLAP;
     private int workerThreads = defaultWorkerThreads();
@@ -40,6 +43,9 @@ public final class MtsrConfig {
     public MtsrConfig validate() {
         extraExcludedNamespaces = sanitize(extraExcludedNamespaces);
         forceIncludedPaths = sanitize(forceIncludedPaths);
+        disabledNamespaces = sanitize(disabledNamespaces);
+        disabledTextureIds = sanitize(disabledTextureIds);
+        taggedForRegenTextureIds = sanitize(taggedForRegenTextureIds);
         tileSize = clamp(tileSize, MIN_TILE_SIZE, MAX_TILE_SIZE);
         tileOverlap = clamp(tileOverlap, 0, tileSize / 2);
         int processors = Runtime.getRuntime().availableProcessors();
@@ -141,6 +147,77 @@ public final class MtsrConfig {
     /** Sets whether completion notifications should be shown. */
     public void showCompletionToast(boolean showCompletionToast) {
         this.showCompletionToast = showCompletionToast;
+    }
+
+    /** Returns group-level disabled namespaces. */
+    public Set<String> disabledNamespaces() {
+        return Set.copyOf(disabledNamespaces);
+    }
+
+    /** Sets group-level disabled namespaces. */
+    public void disabledNamespaces(Set<String> namespaces) {
+        this.disabledNamespaces = new LinkedHashSet<>(namespaces == null ? Set.of() : namespaces);
+    }
+
+    /** Returns individually disabled texture IDs. */
+    public Set<String> disabledTextureIds() {
+        return Set.copyOf(disabledTextureIds);
+    }
+
+    /** Sets individually disabled texture IDs. */
+    public void disabledTextureIds(Set<String> textureIds) {
+        this.disabledTextureIds = new LinkedHashSet<>(textureIds == null ? Set.of() : textureIds);
+    }
+
+    /** Returns texture IDs tagged for regeneration. */
+    public Set<String> taggedForRegenTextureIds() {
+        return Set.copyOf(taggedForRegenTextureIds);
+    }
+
+    /** Sets texture IDs tagged for regeneration. */
+    public void taggedForRegenTextureIds(Set<String> textureIds) {
+        this.taggedForRegenTextureIds = new LinkedHashSet<>(textureIds == null ? Set.of() : textureIds);
+    }
+
+    /** Returns true if a texture is enabled (not disabled by namespace or texture ID). */
+    public boolean isTextureEnabled(String namespace, String textureId) {
+        if (namespace != null && disabledNamespaces.contains(namespace)) {
+            return false;
+        }
+        if (textureId != null && disabledTextureIds.contains(textureId)) {
+            return false;
+        }
+        return true;
+    }
+
+    /** Sets group namespace enablement. */
+    public void setNamespaceEnabled(String namespace, boolean enabled) {
+        if (namespace == null) return;
+        if (enabled) {
+            disabledNamespaces.remove(namespace);
+        } else {
+            disabledNamespaces.add(namespace);
+        }
+    }
+
+    /** Sets individual texture enablement. */
+    public void setTextureEnabled(String textureId, boolean enabled) {
+        if (textureId == null) return;
+        if (enabled) {
+            disabledTextureIds.remove(textureId);
+        } else {
+            disabledTextureIds.add(textureId);
+        }
+    }
+
+    /** Toggles or sets tag for regeneration on a texture ID. */
+    public void setTextureTaggedForRegen(String textureId, boolean tagged) {
+        if (textureId == null) return;
+        if (tagged) {
+            taggedForRegenTextureIds.add(textureId);
+        } else {
+            taggedForRegenTextureIds.remove(textureId);
+        }
     }
 
     private static int defaultWorkerThreads() {

@@ -3,6 +3,7 @@ package me.danvb10.mtsr.upscale;
 import com.mojang.blaze3d.platform.NativeImage;
 import me.danvb10.mtsr.ClientEntrypoint;
 import me.danvb10.mtsr.upscale.cache.CacheKey;
+import me.danvb10.mtsr.upscale.detect.DetectedTexture;
 import me.danvb10.mtsr.upscale.detect.SpriteUpscalePolicy;
 import me.danvb10.mtsr.upscale.model.UpscaleModel;
 import net.fabricmc.api.EnvType;
@@ -97,6 +98,25 @@ public final class AtlasSpriteUpscaler {
             return null;
         }
 
+        String textureId = spriteLocation.toString();
+        String namespace = spriteLocation.getNamespace();
+        String path = spriteLocation.getPath();
+
+        DetectedTexture dt = manager.detectedTextureRegistry().registerOriginal(
+                textureId, namespace, path, pngBytes, original.width(), original.height());
+
+        if (!ClientEntrypoint.config().isTextureEnabled(namespace, textureId)) {
+            dt.setDisabled(true);
+            dt.status(DetectedTexture.Status.DISABLED);
+            return null;
+        } else {
+            dt.setDisabled(false);
+        }
+
+        if (ClientEntrypoint.config().taggedForRegenTextureIds().contains(textureId)) {
+            dt.setTaggedForRegen(true);
+        }
+
         UpscaleModel model = maybeModel.get();
         FrameSize originalFrameSize = animation
                 .map(value -> value.calculateFrameSize(original.width(), original.height()))
@@ -115,6 +135,7 @@ public final class AtlasSpriteUpscaler {
         CacheKey key = CacheKey.of(pngBytes, model.name(), model.scaleFactor(), animated);
         Optional<byte[]> cached = manager.cache().lookup(key);
         if (cached.isEmpty()) {
+            dt.status(DetectedTexture.Status.QUEUED);
             // Stitching is synchronous; queue for the next reload instead of blocking.
             if (frameLayout == null) {
                 manager.queueTexture(spriteLocation.toString(), pngBytes, (id, png) -> { });
@@ -130,8 +151,13 @@ public final class AtlasSpriteUpscaler {
             upscaledImage = NativeImage.read(new ByteArrayInputStream(cached.get()));
         } catch (IOException e) {
             LOGGER.warn("Failed to decode cached upscale for {}", spriteLocation, e);
+            dt.status(DetectedTexture.Status.FAILED);
             return null;
         }
+
+        manager.detectedTextureRegistry().registerUpscaled(
+                textureId, cached.get(), upscaledImage.getWidth(), upscaledImage.getHeight(),
+                DetectedTexture.Status.CACHE_HIT);
         if (!SpriteUpscalePolicy.isValidUpscale(original.width(), original.height(),
                 upscaledImage.getWidth(), upscaledImage.getHeight(), model.scaleFactor())) {
             LOGGER.warn("Cached upscale for {} has unexpected size {}x{}, expected {}x{}",

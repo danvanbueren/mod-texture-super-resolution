@@ -8,6 +8,8 @@ import me.danvb10.mtsr.upscale.model.ModelManager;
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
 
+import java.util.List;
+
 import static me.danvb10.mtsr.config.components.RichWindowTypes.ACTIVITY_LOG_WINDOW;
 
 public class ActivityLogWindow extends AbstractRichWindow<ActivityLogWindow> {
@@ -57,14 +59,10 @@ public class ActivityLogWindow extends AbstractRichWindow<ActivityLogWindow> {
                     .append(Component.literal(failed > 0 ? " (" + failed + " failed)" : "").withStyle(ChatFormatting.RED));
         }));
 
-        window.child(UIComponents.label(
-                Component.literal("Log Output:").withStyle(ChatFormatting.GRAY)));
-
-        window.child(UIComponents.label(
-                Component.literal("  [INFO] Daemon worker thread running (mtsr-upscale-worker)")
-                        .withStyle(ChatFormatting.DARK_GRAY)));
-        window.child(UIComponents.label(
-                Component.literal("  [INFO] Mod texture detection active for non-vanilla namespaces")
-                        .withStyle(ChatFormatting.DARK_GRAY)));
+        window.child(new LiveLabelComponent(() -> {
+            List<String> entries = manager.activityLog().snapshot();
+            String output = entries.isEmpty() ? "No activity yet" : String.join("\n", entries);
+            return Component.literal(output).withStyle(ChatFormatting.DARK_GRAY);
+        }));
     }
 }

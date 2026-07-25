@@ -50,6 +50,8 @@ public final class UpscaleManager implements AutoCloseable {
     private final UpscaleCache cache;
     private final ExecutorService executor;
     private final MtsrConfig config;
+    private final me.danvb10.mtsr.upscale.detect.DetectedTextureRegistry detectedTextureRegistry =
+            new me.danvb10.mtsr.upscale.detect.DetectedTextureRegistry();
     private final ActivityLogBuffer activityLog = new ActivityLogBuffer(300);
     private final Map<WorkKey, List<BiConsumer<String, byte[]>>> inFlight =
             new ConcurrentHashMap<>();
@@ -210,9 +212,14 @@ public final class UpscaleManager implements AutoCloseable {
             Optional<byte[]> cached = cache.lookup(key);
             if (cached.isPresent()) {
                 cacheHits.incrementAndGet();
-                notifyCallbacks(workKey, textureId, cached.get());
                 Dimensions source = pngDimensions(pngBytes);
                 Dimensions target = pngDimensions(cached.get());
+                if (source != null && target != null) {
+                    detectedTextureRegistry.registerUpscaled(textureId, cached.get(),
+                            target.width(), target.height(),
+                            me.danvb10.mtsr.upscale.detect.DetectedTexture.Status.CACHE_HIT);
+                }
+                notifyCallbacks(workKey, textureId, cached.get());
                 if (source != null && target != null) {
                     activityLog.append(logMessage(formatActivity("Cache hit", textureId,
                             source, target, elapsedMillis(started))));
@@ -228,11 +235,16 @@ public final class UpscaleManager implements AutoCloseable {
             cache.store(key, result.bytes());
             upscaled.incrementAndGet();
             success = true;
+            detectedTextureRegistry.registerUpscaled(textureId, result.bytes(),
+                    result.target().width(), result.target().height(),
+                    me.danvb10.mtsr.upscale.detect.DetectedTexture.Status.UPSCALED);
             notifyCallbacks(workKey, textureId, result.bytes());
             activityLog.append(logMessage(formatActivity("Upscaled", textureId,
                     result.source(), result.target(), elapsedMillis(started))));
         } catch (IOException | ModelExecutionException | RuntimeException e) {
             failed.incrementAndGet();
+            detectedTextureRegistry.updateStatus(textureId,
+                    me.danvb10.mtsr.upscale.detect.DetectedTexture.Status.FAILED, e.getMessage());
             LOGGER.warn("Failed to upscale texture {}", textureId, e);
             activityLog.append(logMessage("Failed " + textureId + ": " + e.getMessage()));
         } finally {
@@ -389,6 +401,53 @@ public final class UpscaleManager implements AutoCloseable {
 
     public UpscaleCache cache() {
         return cache;
+    }
+
+    /** Returns the detected texture registry. */
+    public me.danvb10.mtsr.upscale.detect.DetectedTextureRegistry detectedTextureRegistry() {
+        return detectedTextureRegistry;
+    }
+
+    /**
+     * Regenerates a single texture by clearing its cache entry, clearing any tag, and re-queuing if PNG bytes exist.
+     */
+    public void regenerateTexture(String textureId) {
+        me.danvb10.mtsr.upscale.detect.DetectedTexture texture = detectedTextureRegistry.findTexture(textureId);
+        if (texture == null) {
+            return;
+        }
+        texture.setTaggedForRegen(false);
+        config.setTextureTaggedForRegen(textureId, false);
+        Optional<UpscaleModel> maybeModel = modelProvider.activeModel();
+        if (maybeModel.isPresent() && texture.originalPng() != null) {
+            UpscaleModel model = maybeModel.get();
+            CacheKey key = CacheKey.of(texture.originalPng(), model.name(), model.scaleFactor(), false);
+            cache.evict(key);
+            texture.status(me.danvb10.mtsr.upscale.detect.DetectedTexture.Status.QUEUED);
+            queueTexture(textureId, texture.originalPng(), (id, png) -> { });
+        }
+    }
+
+    /**
+     * Regenerates all textures belonging to a namespace group.
+     */
+    public void regenerateNamespace(String namespace) {
+        List<me.danvb10.mtsr.upscale.detect.DetectedTexture> textures =
+                detectedTextureRegistry.getTexturesByNamespace(namespace);
+        for (me.danvb10.mtsr.upscale.detect.DetectedTexture texture : textures) {
+            regenerateTexture(texture.textureId());
+        }
+    }
+
+    /**
+     * Regenerates all textures currently tagged for regeneration.
+     */
+    public void regenerateTagged() {
+        List<me.danvb10.mtsr.upscale.detect.DetectedTexture> tagged =
+                detectedTextureRegistry.getTaggedTextures();
+        for (me.danvb10.mtsr.upscale.detect.DetectedTexture texture : tagged) {
+            regenerateTexture(texture.textureId());
+        }
     }
 
     /** Returns the bounded, thread-safe activity log. */

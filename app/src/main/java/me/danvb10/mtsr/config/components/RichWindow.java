@@ -163,9 +163,7 @@ public class RichWindow {
                     break;
             }
 
-            Screen maxedScreen = new ConfigScreenRichWindowMaximized(this.owner)
-                    .child(newComponent);
-
+            Screen maxedScreen = new ConfigScreenRichWindowMaximized(this.owner, this.richWindowType);
             client.setScreen(maxedScreen);
         }
     }
@@ -247,6 +245,12 @@ public class RichWindow {
     // Helper method to add children
     public RichWindow child(UIComponent component) {
         this.children.add(component);
+        return this;
+    }
+
+    // Helper method to clear children
+    public RichWindow clearChildren() {
+        this.children.clear();
         return this;
     }
 

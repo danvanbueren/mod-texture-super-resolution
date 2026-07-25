@@ -5,8 +5,10 @@ import org.junit.jupiter.api.Test;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class MtsrConfigTest {
 
@@ -52,5 +54,27 @@ class MtsrConfigTest {
 
         assertEquals(Set.of("optifine"), config.extraExcludedNamespaces());
         assertEquals(Set.of("mod:path"), config.forceIncludedPaths());
+    }
+
+    @Test
+    void textureEnablementAndTaggingLogic() {
+        MtsrConfig config = MtsrConfig.defaults();
+
+        assertTrue(config.isTextureEnabled("create", "create:block/cogwheel"));
+
+        config.setNamespaceEnabled("create", false);
+        assertFalse(config.isTextureEnabled("create", "create:block/cogwheel"));
+
+        config.setNamespaceEnabled("create", true);
+        assertTrue(config.isTextureEnabled("create", "create:block/cogwheel"));
+
+        config.setTextureEnabled("create:block/cogwheel", false);
+        assertFalse(config.isTextureEnabled("create", "create:block/cogwheel"));
+
+        config.setTextureTaggedForRegen("create:block/cogwheel", true);
+        assertTrue(config.taggedForRegenTextureIds().contains("create:block/cogwheel"));
+
+        config.validate();
+        assertTrue(config.taggedForRegenTextureIds().contains("create:block/cogwheel"));
     }
 }

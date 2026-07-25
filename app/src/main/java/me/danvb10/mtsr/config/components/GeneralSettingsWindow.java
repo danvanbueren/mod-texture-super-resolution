@@ -69,6 +69,7 @@ public class GeneralSettingsWindow extends AbstractRichWindow<GeneralSettingsWin
                 namespace.setValue("");
                 namespaceResult.text(Component.literal("Saved").withStyle(ChatFormatting.GREEN));
                 refreshNamespaces[0].run();
+                requestScreenRefresh();
             } else {
                 namespaceResult.text(Component.literal("Enter a namespace").withStyle(ChatFormatting.YELLOW));
             }
@@ -88,6 +89,7 @@ public class GeneralSettingsWindow extends AbstractRichWindow<GeneralSettingsWin
                             namespaceResult.text(Component.literal("Saved")
                                     .withStyle(ChatFormatting.GREEN));
                             refreshNamespaces[0].run();
+                            requestScreenRefresh();
                         }));
             }
         };

@@ -25,6 +25,16 @@ public record CacheKey(String hash) {
         }
     }
 
+    /** Returns the SHA-256 hash of source texture bytes without model identity. */
+    public static String contentHash(byte[] textureBytes) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            return toHex(digest.digest(textureBytes));
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 unavailable", e);
+        }
+    }
+
     /** File name of this entry inside the cache directory. */
     public String fileName() {
         return hash + ".png";

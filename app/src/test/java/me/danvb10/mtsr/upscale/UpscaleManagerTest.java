@@ -231,6 +231,39 @@ class UpscaleManagerTest {
     }
 
     @Test
+    void lateJoinAfterResultDrainIsRequeuedAndReceivesCallback() throws Exception {
+        MtsrConfig config = MtsrConfig.defaults();
+        config.workerThreads(1);
+        CountDownLatch firstCallback = new CountDownLatch(1);
+        CountDownLatch releaseFirstCallback = new CountDownLatch(1);
+        CountDownLatch secondCallback = new CountDownLatch(1);
+        TrackingModel model = new TrackingModel();
+        byte[] png = testPng();
+
+        try (UpscaleManager manager = newManager(model, config)) {
+            manager.queueTexture("somemod:textures/item/a.png", png,
+                    (id, bytes) -> {
+                        firstCallback.countDown();
+                        try {
+                            manager.queueTexture("somemod:textures/item/a.png", png,
+                                    (duplicateId, duplicateBytes) -> secondCallback.countDown());
+                            releaseFirstCallback.await(10, TimeUnit.SECONDS);
+                        } catch (InterruptedException e) {
+                            Thread.currentThread().interrupt();
+                        }
+                    });
+            assertTrue(firstCallback.await(10, TimeUnit.SECONDS));
+            releaseFirstCallback.countDown();
+
+            assertTrue(secondCallback.await(10, TimeUnit.SECONDS));
+            assertEquals(1, model.calls.get());
+            assertEquals(2, manager.queuedCount());
+            assertEquals(1, manager.upscaledCount());
+            assertEquals(1, manager.cacheHitCount());
+        }
+    }
+
+    @Test
     void completionListenerFiresOnceAndRearmsForNextBatch() throws Exception {
         AtomicInteger notifications = new AtomicInteger();
         CountDownLatch first = new CountDownLatch(1);
@@ -280,6 +313,29 @@ class UpscaleManagerTest {
             Thread.sleep(50);
             assertEquals(0, notifications.get());
         }
+    }
+
+    @Test
+    void missingModelIsSkippedWithoutFailureOrCompletionNotification() throws Exception {
+        MtsrConfig config = MtsrConfig.defaults();
+        AtomicInteger notifications = new AtomicInteger();
+        UpscaleManager manager = new UpscaleManager(Optional::empty,
+                new UpscaleCache(tempDir.resolve("no-model-cache")), config);
+        manager.addBatchCompletionListener(notifications::incrementAndGet);
+        manager.beginBatch();
+        manager.queueTexture("somemod:textures/item/a.png", testPng(),
+                (id, bytes) -> {
+                });
+        manager.endBatch();
+        long deadline = System.currentTimeMillis() + 10_000;
+        while (manager.skippedCount() == 0 && System.currentTimeMillis() < deadline) {
+            Thread.sleep(20);
+        }
+
+        assertEquals(1, manager.skippedCount());
+        assertEquals(0, manager.failedCount());
+        assertEquals(0, notifications.get());
+        manager.close();
     }
 
     @Test

@@ -19,6 +19,8 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
@@ -55,6 +57,7 @@ public final class UpscaleManager implements AutoCloseable {
     private final AtomicInteger upscaled = new AtomicInteger();
     private final AtomicInteger cacheHits = new AtomicInteger();
     private final AtomicInteger failed = new AtomicInteger();
+    private final AtomicInteger skipped = new AtomicInteger();
 
     public UpscaleManager(ModelProvider modelProvider, UpscaleCache cache) {
         this(modelProvider, cache, MtsrConfig.defaults());
@@ -102,9 +105,16 @@ public final class UpscaleManager implements AutoCloseable {
         WorkKey workKey = WorkKey.of(textureId, pngBytes);
         List<BiConsumer<String, byte[]>> callbacks = new CopyOnWriteArrayList<>();
         callbacks.add(onUpscaled);
-        List<BiConsumer<String, byte[]>> existing = inFlight.putIfAbsent(workKey, callbacks);
-        if (existing != null) {
+        AtomicBoolean owner = new AtomicBoolean();
+        inFlight.compute(workKey, (key, existing) -> {
+            if (existing == null) {
+                owner.set(true);
+                return callbacks;
+            }
             existing.add(onUpscaled);
+            return existing;
+        });
+        if (!owner.get()) {
             return;
         }
         BatchState batch;
@@ -167,7 +177,7 @@ public final class UpscaleManager implements AutoCloseable {
         try {
             Optional<UpscaleModel> maybeModel = modelProvider.activeModel();
             if (maybeModel.isEmpty()) {
-                failed.incrementAndGet();
+                skipped.incrementAndGet();
                 return;
             }
             UpscaleModel model = maybeModel.get();
@@ -187,14 +197,20 @@ public final class UpscaleManager implements AutoCloseable {
             failed.incrementAndGet();
             LOGGER.warn("Failed to upscale texture {}", textureId, e);
         } finally {
-            inFlight.remove(workKey);
+            if (!success) {
+                inFlight.remove(workKey);
+            }
             finish(batch, success);
         }
     }
 
     private void notifyCallbacks(WorkKey workKey, String textureId, byte[] pngBytes) {
-        List<BiConsumer<String, byte[]>> callbacks =
-                inFlight.remove(workKey);
+        AtomicReference<List<BiConsumer<String, byte[]>>> drained = new AtomicReference<>();
+        inFlight.computeIfPresent(workKey, (key, callbacks) -> {
+            drained.set(callbacks);
+            return null;
+        });
+        List<BiConsumer<String, byte[]>> callbacks = drained.get();
         if (callbacks == null) {
             return;
         }
@@ -285,6 +301,11 @@ public final class UpscaleManager implements AutoCloseable {
         return failed.get();
     }
 
+    /** Returns the number of textures skipped because no model was available. */
+    public int skippedCount() {
+        return skipped.get();
+    }
+
     @Override
     public synchronized void close() {
         if (closed) {
@@ -319,7 +340,7 @@ public final class UpscaleManager implements AutoCloseable {
 
     private record WorkKey(String textureId, String sourceHash) {
         private static WorkKey of(String textureId, byte[] pngBytes) {
-            return new WorkKey(textureId, CacheKey.of(pngBytes, "", 0).hash());
+            return new WorkKey(textureId, CacheKey.contentHash(pngBytes));
         }
     }
 }

@@ -1,6 +1,5 @@
 package me.danvb10.mtsr.upscale;
 
-import me.danvb10.mtsr.ClientEntrypoint;
 import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
 import net.minecraft.client.Minecraft;
@@ -28,6 +27,9 @@ public final class UpscaleCompletionToast {
 
     private static void show() {
         Minecraft client = Minecraft.getInstance();
+        if (client == null) {
+            return;
+        }
         client.execute(() -> {
             if (client.player == null || client.level == null) {
                 return;

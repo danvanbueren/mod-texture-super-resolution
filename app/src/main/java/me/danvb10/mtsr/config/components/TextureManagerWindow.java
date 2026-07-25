@@ -67,6 +67,13 @@ public class TextureManagerWindow extends AbstractRichWindow<TextureManagerWindo
                     .append(Component.literal(String.valueOf(failed))
                             .withStyle(failed > 0 ? ChatFormatting.RED : ChatFormatting.GREEN));
         }));
+
+        window.child(new LiveLabelComponent(() -> {
+            int skipped = manager.skippedCount();
+            return Component.literal("  Skipped Textures: ")
+                    .withStyle(ChatFormatting.GRAY)
+                    .append(Component.literal(String.valueOf(skipped))
+                            .withStyle(ChatFormatting.YELLOW));
+        }));
     }
 }
-

@@ -4,6 +4,7 @@ import io.wispforest.owo.ui.component.UIComponents;
 import me.danvb10.mtsr.ClientEntrypoint;
 import me.danvb10.mtsr.config.ConfigScreen;
 import me.danvb10.mtsr.upscale.UpscaleManager;
+import me.danvb10.mtsr.upscale.model.ModelManager;
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
 
@@ -40,7 +41,15 @@ public class ActivityMonitorWindow extends AbstractRichWindow<ActivityMonitorWin
                 .child(statLabel("Queued", UpscaleManager::queuedCount))
                 .child(statLabel("Upscaled", UpscaleManager::upscaledCount))
                 .child(statLabel("Cache hits", UpscaleManager::cacheHitCount))
-                .child(statLabel("Failed", UpscaleManager::failedCount));
+                .child(statLabel("Skipped", UpscaleManager::skippedCount))
+                .child(statLabel("Failed", UpscaleManager::failedCount))
+                .child(new LiveLabelComponent(() -> {
+                    String provider = manager.modelProvider() instanceof ModelManager models
+                            ? models.effectiveExecutionProvider().name() : "unknown";
+                    return Component.literal("Provider: ")
+                            .withStyle(ChatFormatting.GRAY)
+                            .append(Component.literal(provider).withStyle(ChatFormatting.WHITE));
+                }));
     }
 
     private static LiveLabelComponent statLabel(String name, Function<UpscaleManager, Integer> counter) {

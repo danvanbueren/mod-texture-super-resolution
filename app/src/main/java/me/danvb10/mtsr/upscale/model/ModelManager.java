@@ -1,5 +1,8 @@
 package me.danvb10.mtsr.upscale.model;
 
+import me.danvb10.mtsr.config.MtsrConfig;
+import me.danvb10.mtsr.config.MtsrConfigStore;
+import me.danvb10.mtsr.config.ExecutionProvider;
 import me.danvb10.mtsr.upscale.runtime.OnnxRuntimeBootstrap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -35,6 +38,11 @@ public final class ModelManager implements ModelProvider, AutoCloseable {
 
     private final Path modelDirectory;
     private final Path runtimeDirectory;
+    private final int tileSize;
+    private final int tileOverlap;
+    private final MtsrConfig config;
+    private final MtsrConfigStore configStore;
+    private final ModelLoader modelLoader;
     private UpscaleModel activeModel;
     private boolean loadAttempted;
 
@@ -48,8 +56,29 @@ public final class ModelManager implements ModelProvider, AutoCloseable {
      *                         bootstrap (e.g. in tests).
      */
     public ModelManager(Path modelDirectory, Path runtimeDirectory) {
+        this(modelDirectory, runtimeDirectory, MtsrConfig.defaults(), null);
+    }
+
+    /** Creates a model manager using tile settings from the supplied config. */
+    public ModelManager(Path modelDirectory, Path runtimeDirectory, MtsrConfig config) {
+        this(modelDirectory, runtimeDirectory, config, null);
+    }
+
+    /** Creates a model manager with persistence for runtime model selection. */
+    public ModelManager(Path modelDirectory, Path runtimeDirectory, MtsrConfig config,
+                        MtsrConfigStore configStore) {
+        this(modelDirectory, runtimeDirectory, config, configStore, null);
+    }
+
+    ModelManager(Path modelDirectory, Path runtimeDirectory, MtsrConfig config,
+                 MtsrConfigStore configStore, ModelLoader modelLoader) {
         this.modelDirectory = modelDirectory;
         this.runtimeDirectory = runtimeDirectory;
+        this.tileSize = config.tileSize();
+        this.tileOverlap = config.tileOverlap();
+        this.config = config;
+        this.configStore = configStore;
+        this.modelLoader = modelLoader;
     }
 
     /** Lists available .onnx model files, sorted by name. */
@@ -99,19 +128,87 @@ public final class ModelManager implements ModelProvider, AutoCloseable {
         if (runtimeDirectory != null && !OnnxRuntimeBootstrap.ensureAvailable(runtimeDirectory)) {
             return Optional.empty();
         }
-        Path modelFile = models.getFirst();
+        Path modelFile = selectedModelFile();
+        return loadModel(modelFile);
+    }
+
+    /** Returns the configured model when present, otherwise the first sorted model. */
+    public Path selectedModelFile() {
+        List<Path> models = availableModels();
+        if (models.isEmpty()) {
+            return null;
+        }
+        String configuredName = config.activeModelFileName();
+        if (configuredName == null) {
+            return models.getFirst();
+        }
+        for (Path model : models) {
+            if (model.getFileName().toString().equals(configuredName)) {
+                return model;
+            }
+        }
+        LOGGER.warn("Configured active model '{}' was not found in {}; using automatic selection",
+                configuredName, modelDirectory);
+        return models.getFirst();
+    }
+
+    private synchronized Optional<UpscaleModel> loadModel(Path modelFile) {
         String fileName = modelFile.getFileName().toString();
         String modelName = fileName.substring(0, fileName.length() - ".onnx".length());
         int scale = parseScaleFromName(modelName);
         try {
-            activeModel = EsrganModel.load(modelFile, modelName, scale,
-                    DEFAULT_TILE_SIZE, DEFAULT_TILE_OVERLAP);
+            activeModel = modelLoader == null
+                    ? EsrganModel.load(modelFile, modelName, scale, tileSize, tileOverlap, config)
+                    : modelLoader.load(modelFile, modelName, scale,
+                    tileSize, tileOverlap, config);
             LOGGER.info("Loaded ESRGAN model '{}' ({}x) from {}", modelName, scale, modelFile);
             return Optional.of(activeModel);
         } catch (ModelExecutionException | UnsatisfiedLinkError | NoClassDefFoundError e) {
             LOGGER.error("Failed to load ESRGAN model {}", modelFile, e);
             return Optional.empty();
         }
+    }
+
+    /** Returns the provider actually used by the loaded model. */
+    public synchronized ExecutionProvider effectiveExecutionProvider() {
+        return activeModel == null ? config.executionProvider() : activeModel.executionProvider();
+    }
+
+    /** Switches models, closes the prior session, and persists the selection. */
+    public synchronized boolean selectModel(String fileName) {
+        Optional<Path> selected = availableModels().stream()
+                .filter(path -> path.getFileName().toString().equals(fileName))
+                .findFirst();
+        if (selected.isEmpty()) {
+            LOGGER.warn("Cannot select missing model '{}'", fileName);
+            return false;
+        }
+        if (activeModel != null) {
+            activeModel.close();
+            activeModel = null;
+        }
+        loadAttempted = false;
+        config.activeModelFileName(fileName);
+        persistConfig();
+        return activeModel().isPresent();
+    }
+
+    private void persistConfig() {
+        if (configStore == null) {
+            return;
+        }
+        try {
+            configStore.save(config);
+        } catch (IOException e) {
+            LOGGER.warn("Failed to persist active model selection", e);
+        }
+    }
+
+    @FunctionalInterface
+    interface ModelLoader {
+        UpscaleModel load(Path modelFile, String name, int scaleFactor,
+                          int tileSize, int tileOverlap, MtsrConfig config)
+                throws ModelExecutionException;
     }
 
     /** Parses the trailing -xN / _xN scale suffix from a model name. */

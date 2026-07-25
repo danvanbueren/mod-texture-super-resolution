@@ -1,6 +1,9 @@
 package me.danvb10.mtsr.upscale.detect;
 
+import me.danvb10.mtsr.config.MtsrConfig;
 import org.junit.jupiter.api.Test;
+
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -33,6 +36,14 @@ class SpriteUpscalePolicyTest {
     void nullInputsAreNotEligible() {
         assertFalse(SpriteUpscalePolicy.isEligibleSprite(null, "block/stone"));
         assertFalse(SpriteUpscalePolicy.isEligibleSprite("somemod", null));
+    }
+
+    @Test
+    void configuredForcePathMakesSpriteEligible() {
+        MtsrConfig config = MtsrConfig.defaults();
+        config.forceIncludedPaths(Set.of("somemod:textures/block/"));
+
+        assertTrue(SpriteUpscalePolicy.isEligibleSprite("somemod", "block/machine", config));
     }
 
     @Test

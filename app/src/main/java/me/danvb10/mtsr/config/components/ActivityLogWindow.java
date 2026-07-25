@@ -8,6 +8,10 @@ import me.danvb10.mtsr.upscale.model.ModelManager;
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
 
+import java.util.List;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
+
 import static me.danvb10.mtsr.config.components.RichWindowTypes.ACTIVITY_LOG_WINDOW;
 
 public class ActivityLogWindow extends AbstractRichWindow<ActivityLogWindow> {
@@ -47,22 +51,26 @@ public class ActivityLogWindow extends AbstractRichWindow<ActivityLogWindow> {
         window.child(new LiveLabelComponent(() -> {
             int total = manager.queuedCount();
             int done = manager.upscaledCount() + manager.cacheHitCount();
+            int skipped = manager.skippedCount();
             int failed = manager.failedCount();
             return Component.literal("Processed: ")
                     .withStyle(ChatFormatting.GRAY)
                     .append(Component.literal(done + "/" + total + " completed").withStyle(ChatFormatting.WHITE))
+                    .append(Component.literal(skipped > 0 ? " (" + skipped + " skipped)" : "")
+                            .withStyle(ChatFormatting.YELLOW))
                     .append(Component.literal(failed > 0 ? " (" + failed + " failed)" : "").withStyle(ChatFormatting.RED));
         }));
 
-        window.child(UIComponents.label(
-                Component.literal("Log Output:").withStyle(ChatFormatting.GRAY)));
-
-        window.child(UIComponents.label(
-                Component.literal("  [INFO] Daemon worker thread running (mtsr-upscale-worker)")
-                        .withStyle(ChatFormatting.DARK_GRAY)));
-        window.child(UIComponents.label(
-                Component.literal("  [INFO] Mod texture detection active for non-vanilla namespaces")
-                        .withStyle(ChatFormatting.DARK_GRAY)));
+        AtomicLong renderedSequence = new AtomicLong(-1);
+        AtomicReference<String> renderedOutput = new AtomicReference<>("No activity yet");
+        window.child(new LiveLabelComponent(() -> {
+            var snapshot = manager.activityLog().snapshot(20);
+            if (renderedSequence.getAndSet(snapshot.sequence()) != snapshot.sequence()) {
+                List<String> entries = snapshot.entries();
+                renderedOutput.set(entries.isEmpty()
+                        ? "No activity yet" : String.join("\n", entries));
+            }
+            return Component.literal(renderedOutput.get()).withStyle(ChatFormatting.DARK_GRAY);
+        }));
     }
 }
-

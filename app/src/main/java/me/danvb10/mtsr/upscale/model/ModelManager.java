@@ -1,5 +1,6 @@
 package me.danvb10.mtsr.upscale.model;
 
+import me.danvb10.mtsr.config.MtsrConfig;
 import me.danvb10.mtsr.upscale.runtime.OnnxRuntimeBootstrap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -35,6 +36,8 @@ public final class ModelManager implements ModelProvider, AutoCloseable {
 
     private final Path modelDirectory;
     private final Path runtimeDirectory;
+    private final int tileSize;
+    private final int tileOverlap;
     private UpscaleModel activeModel;
     private boolean loadAttempted;
 
@@ -48,8 +51,15 @@ public final class ModelManager implements ModelProvider, AutoCloseable {
      *                         bootstrap (e.g. in tests).
      */
     public ModelManager(Path modelDirectory, Path runtimeDirectory) {
+        this(modelDirectory, runtimeDirectory, MtsrConfig.defaults());
+    }
+
+    /** Creates a model manager using tile settings from the supplied config. */
+    public ModelManager(Path modelDirectory, Path runtimeDirectory, MtsrConfig config) {
         this.modelDirectory = modelDirectory;
         this.runtimeDirectory = runtimeDirectory;
+        this.tileSize = config.tileSize();
+        this.tileOverlap = config.tileOverlap();
     }
 
     /** Lists available .onnx model files, sorted by name. */
@@ -105,7 +115,7 @@ public final class ModelManager implements ModelProvider, AutoCloseable {
         int scale = parseScaleFromName(modelName);
         try {
             activeModel = EsrganModel.load(modelFile, modelName, scale,
-                    DEFAULT_TILE_SIZE, DEFAULT_TILE_OVERLAP);
+                    tileSize, tileOverlap);
             LOGGER.info("Loaded ESRGAN model '{}' ({}x) from {}", modelName, scale, modelFile);
             return Optional.of(activeModel);
         } catch (ModelExecutionException | UnsatisfiedLinkError | NoClassDefFoundError e) {

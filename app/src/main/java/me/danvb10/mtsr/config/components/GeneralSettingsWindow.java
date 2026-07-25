@@ -3,9 +3,9 @@ package me.danvb10.mtsr.config.components;
 import io.wispforest.owo.ui.component.UIComponents;
 import me.danvb10.mtsr.ClientEntrypoint;
 import me.danvb10.mtsr.config.ConfigScreen;
+import me.danvb10.mtsr.config.MtsrConfig;
 import me.danvb10.mtsr.upscale.UpscaleManager;
 import me.danvb10.mtsr.upscale.detect.TextureDetector;
-import me.danvb10.mtsr.upscale.model.ModelManager;
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
 
@@ -31,6 +31,7 @@ public class GeneralSettingsWindow extends AbstractRichWindow<GeneralSettingsWin
                             .withStyle(ChatFormatting.GRAY)));
             return;
         }
+        MtsrConfig config = manager.config();
 
         window.child(UIComponents.label(
                 Component.literal("Pipeline Status: ")
@@ -45,17 +46,35 @@ public class GeneralSettingsWindow extends AbstractRichWindow<GeneralSettingsWin
         window.child(UIComponents.label(
                 Component.literal("Excluded Namespaces: ")
                         .withStyle(ChatFormatting.GRAY)
-                        .append(Component.literal(String.join(", ", TextureDetector.EXCLUDED_NAMESPACES)).withStyle(ChatFormatting.WHITE))));
+                        .append(Component.literal(String.join(", ",
+                                TextureDetector.excludedNamespaces(config))).withStyle(ChatFormatting.WHITE))));
 
         window.child(UIComponents.label(
-                Component.literal("Default Tile Size: ")
+                Component.literal("Tile Size: ")
                         .withStyle(ChatFormatting.GRAY)
-                        .append(Component.literal(ModelManager.DEFAULT_TILE_SIZE + " px").withStyle(ChatFormatting.WHITE))));
+                        .append(Component.literal(config.tileSize() + " px").withStyle(ChatFormatting.WHITE))));
 
         window.child(UIComponents.label(
                 Component.literal("Tile Overlap: ")
                         .withStyle(ChatFormatting.GRAY)
-                        .append(Component.literal(ModelManager.DEFAULT_TILE_OVERLAP + " px").withStyle(ChatFormatting.WHITE))));
+                        .append(Component.literal(config.tileOverlap() + " px").withStyle(ChatFormatting.WHITE))));
+
+        window.child(UIComponents.label(
+                Component.literal("Worker Threads: ")
+                        .withStyle(ChatFormatting.GRAY)
+                        .append(Component.literal(Integer.toString(config.workerThreads()))
+                                .withStyle(ChatFormatting.WHITE))));
+
+        window.child(UIComponents.label(
+                Component.literal("Execution Provider: ")
+                        .withStyle(ChatFormatting.GRAY)
+                        .append(Component.literal(config.executionProvider().name())
+                                .withStyle(ChatFormatting.WHITE))));
+
+        window.child(UIComponents.label(
+                Component.literal("Animated Textures: ")
+                        .withStyle(ChatFormatting.GRAY)
+                        .append(Component.literal(Boolean.toString(config.upscaleAnimatedTextures()))
+                                .withStyle(ChatFormatting.WHITE))));
     }
 }
-

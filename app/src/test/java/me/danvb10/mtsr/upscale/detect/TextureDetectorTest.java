@@ -1,6 +1,9 @@
 package me.danvb10.mtsr.upscale.detect;
 
+import me.danvb10.mtsr.config.MtsrConfig;
 import org.junit.jupiter.api.Test;
+
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -31,5 +34,24 @@ class TextureDetectorTest {
     void rejectsNullInputs() {
         assertFalse(TextureDetector.isModTexture(null, "textures/a.png"));
         assertFalse(TextureDetector.isModTexture("somemod", null));
+    }
+
+    @Test
+    void configuredNamespacesAreExcluded() {
+        MtsrConfig config = MtsrConfig.defaults();
+        config.extraExcludedNamespaces(Set.of("optifine"));
+
+        assertFalse(TextureDetector.isModTexture("optifine", "textures/item/a.png", config));
+        assertTrue(TextureDetector.isModTexture("somemod", "textures/item/a.png", config));
+    }
+
+    @Test
+    void forceIncludedPathsOverridePathAndExtension() {
+        MtsrConfig config = MtsrConfig.defaults();
+        config.forceIncludedPaths(Set.of("somemod:custom/"));
+
+        assertTrue(TextureDetector.isModTexture("somemod", "custom/data.png", config));
+        assertFalse(TextureDetector.isModTexture("somemod", "textures/custom/data.json", config));
+        assertFalse(TextureDetector.isModTexture("minecraft", "textures/custom/data.png", config));
     }
 }

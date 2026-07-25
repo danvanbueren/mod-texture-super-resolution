@@ -66,7 +66,8 @@ public final class AtlasSpriteUpscaler {
                                              SpriteContents original,
                                              Set<MetadataSectionType<?>> additionalMetadataSections) {
         if (!SpriteUpscalePolicy.isEligibleSprite(
-                spriteLocation.getNamespace(), spriteLocation.getPath())) {
+                spriteLocation.getNamespace(), spriteLocation.getPath(),
+                ClientEntrypoint.config())) {
             return null;
         }
         UpscaleManager manager = ClientEntrypoint.upscaleManager();

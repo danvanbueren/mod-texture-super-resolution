@@ -1,0 +1,26 @@
+# Handle line endings automatically for text files
+* text=auto eol=lf
+
+# Explicitly declare text files to always use LF on commit
+*.java text eol=lf
+*.gradle text eol=lf
+*.json text eol=lf
+*.md text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.xml text eol=lf
+*.properties text eol=lf
+*.gitignore text eol=lf
+*.gitattributes text eol=lf
+
+# Linux shell scripts must use LF
+gradlew text eol=lf
+
+# Windows batch files must use CRLF
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Binary files
+*.png binary
+*.jar binary
+*.onnx binary

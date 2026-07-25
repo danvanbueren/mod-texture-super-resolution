@@ -16,9 +16,14 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 
@@ -26,8 +31,8 @@ import java.util.function.BiConsumer;
  * Orchestrates the upscale pipeline: for each detected mod texture it checks
  * the disk cache, runs the ESRGAN model on a cache miss, stores the result,
  * and hands the upscaled PNG to a consumer for registration with the game.
- * All work happens on a background daemon thread so the render thread is
- * never blocked.
+ * All work happens on background daemon threads so the render thread is never
+ * blocked.
  */
 public final class UpscaleManager implements AutoCloseable {
 
@@ -37,6 +42,14 @@ public final class UpscaleManager implements AutoCloseable {
     private final UpscaleCache cache;
     private final ExecutorService executor;
     private final MtsrConfig config;
+    private final Map<WorkKey, List<BiConsumer<String, byte[]>>> inFlight =
+            new ConcurrentHashMap<>();
+    private final CopyOnWriteArrayList<Runnable> batchCompletionListeners =
+            new CopyOnWriteArrayList<>();
+    private final Object batchMonitor = new Object();
+    private final AtomicInteger workerId = new AtomicInteger();
+    private volatile boolean closed;
+    private BatchState currentBatch;
 
     private final AtomicInteger queued = new AtomicInteger();
     private final AtomicInteger upscaled = new AtomicInteger();
@@ -52,12 +65,14 @@ public final class UpscaleManager implements AutoCloseable {
         this.modelProvider = modelProvider;
         this.cache = cache;
         this.config = config;
-        this.executor = Executors.newSingleThreadExecutor(runnable -> {
-            Thread thread = new Thread(runnable, "mtsr-upscale-worker");
+        ThreadFactory threadFactory = runnable -> {
+            Thread thread = new Thread(runnable,
+                    "mtsr-upscale-worker-" + workerId.incrementAndGet());
             thread.setDaemon(true);
             thread.setPriority(Thread.MIN_PRIORITY);
             return thread;
-        });
+        };
+        this.executor = Executors.newFixedThreadPool(config.workerThreads(), threadFactory);
     }
 
     /** Creates a manager rooted at the game directory's standard mod paths. */
@@ -81,32 +96,144 @@ public final class UpscaleManager implements AutoCloseable {
      */
     public void queueTexture(String textureId, byte[] pngBytes,
                              BiConsumer<String, byte[]> onUpscaled) {
+        if (closed) {
+            return;
+        }
+        WorkKey workKey = WorkKey.of(textureId, pngBytes);
+        List<BiConsumer<String, byte[]>> callbacks = new CopyOnWriteArrayList<>();
+        callbacks.add(onUpscaled);
+        List<BiConsumer<String, byte[]>> existing = inFlight.putIfAbsent(workKey, callbacks);
+        if (existing != null) {
+            existing.add(onUpscaled);
+            return;
+        }
+        BatchState batch;
+        synchronized (batchMonitor) {
+            if (currentBatch == null || currentBatch.ended) {
+                currentBatch = new BatchState();
+                currentBatch.ended = true;
+            }
+            batch = currentBatch;
+            batch.pending++;
+            if (batch.implicit) {
+                currentBatch = null;
+            }
+        }
         queued.incrementAndGet();
-        executor.execute(() -> process(textureId, pngBytes, onUpscaled));
+        try {
+            executor.execute(() -> process(textureId, pngBytes, workKey, batch));
+        } catch (RuntimeException e) {
+            inFlight.remove(workKey);
+            finish(batch, false);
+            throw e;
+        }
     }
 
-    private void process(String textureId, byte[] pngBytes,
-                         BiConsumer<String, byte[]> onUpscaled) {
-        Optional<UpscaleModel> maybeModel = modelProvider.activeModel();
-        if (maybeModel.isEmpty()) {
-            return;
+    /** Starts an explicit batch for resource reload work. */
+    public void beginBatch() {
+        synchronized (batchMonitor) {
+            currentBatch = new BatchState();
+            currentBatch.implicit = false;
         }
-        UpscaleModel model = maybeModel.get();
-        CacheKey key = CacheKey.of(pngBytes, model.name(), model.scaleFactor());
-        Optional<byte[]> cached = cache.lookup(key);
-        if (cached.isPresent()) {
-            cacheHits.incrementAndGet();
-            onUpscaled.accept(textureId, cached.get());
-            return;
+    }
+
+    /** Marks the current explicit batch complete once queued work drains. */
+    public void endBatch() {
+        BatchState batch;
+        synchronized (batchMonitor) {
+            batch = currentBatch;
+            if (batch == null || batch.implicit) {
+                return;
+            }
+            batch.ended = true;
+            currentBatch = null;
         }
+        maybeNotify(batch);
+    }
+
+    /** Registers a Minecraft-free callback invoked after a successful batch. */
+    public void addBatchCompletionListener(Runnable listener) {
+        batchCompletionListeners.add(listener);
+    }
+
+    /** Removes a previously registered batch completion callback. */
+    public void removeBatchCompletionListener(Runnable listener) {
+        batchCompletionListeners.remove(listener);
+    }
+
+    private void process(String textureId, byte[] pngBytes, WorkKey workKey,
+                         BatchState batch) {
+        boolean success = false;
         try {
+            Optional<UpscaleModel> maybeModel = modelProvider.activeModel();
+            if (maybeModel.isEmpty()) {
+                failed.incrementAndGet();
+                return;
+            }
+            UpscaleModel model = maybeModel.get();
+            CacheKey key = CacheKey.of(pngBytes, model.name(), model.scaleFactor());
+            Optional<byte[]> cached = cache.lookup(key);
+            if (cached.isPresent()) {
+                cacheHits.incrementAndGet();
+                notifyCallbacks(workKey, textureId, cached.get());
+                return;
+            }
             byte[] result = upscalePng(model, pngBytes);
             cache.store(key, result);
             upscaled.incrementAndGet();
-            onUpscaled.accept(textureId, result);
+            success = true;
+            notifyCallbacks(workKey, textureId, result);
         } catch (IOException | ModelExecutionException | RuntimeException e) {
             failed.incrementAndGet();
             LOGGER.warn("Failed to upscale texture {}", textureId, e);
+        } finally {
+            inFlight.remove(workKey);
+            finish(batch, success);
+        }
+    }
+
+    private void notifyCallbacks(WorkKey workKey, String textureId, byte[] pngBytes) {
+        List<BiConsumer<String, byte[]>> callbacks =
+                inFlight.remove(workKey);
+        if (callbacks == null) {
+            return;
+        }
+        for (BiConsumer<String, byte[]> callback : callbacks) {
+            try {
+                callback.accept(textureId, pngBytes);
+            } catch (RuntimeException e) {
+                LOGGER.warn("Upscale callback failed for {}", textureId, e);
+            }
+        }
+    }
+
+    private void finish(BatchState batch, boolean success) {
+        synchronized (batchMonitor) {
+            batch.pending--;
+            if (success) {
+                batch.upscaled++;
+            }
+        }
+        maybeNotify(batch);
+    }
+
+    private void maybeNotify(BatchState batch) {
+        synchronized (batchMonitor) {
+            if (closed || !batch.ended || batch.pending != 0
+                    || batch.upscaled == 0 || batch.notified) {
+                return;
+            }
+            batch.notified = true;
+        }
+        if (!config.showCompletionToast()) {
+            return;
+        }
+        for (Runnable listener : batchCompletionListeners) {
+            try {
+                listener.run();
+            } catch (RuntimeException e) {
+                LOGGER.warn("Batch completion listener failed", e);
+            }
         }
     }
 
@@ -159,14 +286,40 @@ public final class UpscaleManager implements AutoCloseable {
     }
 
     @Override
-    public void close() {
+    public synchronized void close() {
+        if (closed) {
+            return;
+        }
+        closed = true;
         executor.shutdownNow();
+        try {
+            if (!executor.awaitTermination(5, java.util.concurrent.TimeUnit.SECONDS)) {
+                LOGGER.warn("Upscale workers did not terminate within five seconds");
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            LOGGER.warn("Interrupted while stopping upscale workers", e);
+        }
         if (modelProvider instanceof AutoCloseable closeable) {
             try {
                 closeable.close();
             } catch (Exception e) {
                 LOGGER.warn("Failed to close model provider", e);
             }
+        }
+    }
+
+    private static final class BatchState {
+        private int pending;
+        private int upscaled;
+        private boolean implicit = true;
+        private boolean ended;
+        private boolean notified;
+    }
+
+    private record WorkKey(String textureId, String sourceHash) {
+        private static WorkKey of(String textureId, byte[] pngBytes) {
+            return new WorkKey(textureId, CacheKey.of(pngBytes, "", 0).hash());
         }
     }
 }

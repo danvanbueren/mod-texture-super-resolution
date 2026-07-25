@@ -1,5 +1,6 @@
 package me.danvb10.mtsr.upscale;
 
+import me.danvb10.mtsr.config.MtsrConfig;
 import me.danvb10.mtsr.upscale.cache.UpscaleCache;
 import me.danvb10.mtsr.upscale.model.UpscaleModel;
 import org.junit.jupiter.api.Test;
@@ -16,6 +17,8 @@ import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -26,7 +29,7 @@ class UpscaleManagerTest {
     Path tempDir;
 
     /** Deterministic 2x nearest-neighbor stand-in for a real ESRGAN model. */
-    private static final class FakeModel implements UpscaleModel {
+    private static class FakeModel implements UpscaleModel {
         @Override
         public String name() {
             return "fake-x2";
@@ -53,15 +56,81 @@ class UpscaleManagerTest {
         }
     }
 
+    private static final class TrackingModel extends FakeModel {
+        private final AtomicInteger calls = new AtomicInteger();
+        private final AtomicInteger active = new AtomicInteger();
+        private final AtomicInteger maximumActive = new AtomicInteger();
+        private final CountDownLatch entered;
+        private final CountDownLatch release;
+
+        private TrackingModel() {
+            this(null, null);
+        }
+
+        private TrackingModel(CountDownLatch entered, CountDownLatch release) {
+            this.entered = entered;
+            this.release = release;
+        }
+
+        @Override
+        public int[] upscale(int[] argb, int width, int height) {
+            calls.incrementAndGet();
+            int concurrent = active.incrementAndGet();
+            maximumActive.accumulateAndGet(concurrent, Math::max);
+            if (entered != null) {
+                entered.countDown();
+            }
+            try {
+                if (release != null) {
+                    release.await(10, TimeUnit.SECONDS);
+                } else {
+                    Thread.sleep(100);
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            } finally {
+                active.decrementAndGet();
+            }
+            return super.upscale(argb, width, height);
+        }
+    }
+
+    private static final class ClosableProvider
+            implements me.danvb10.mtsr.upscale.model.ModelProvider, AutoCloseable {
+        private final UpscaleModel model;
+        private final AtomicBoolean closed = new AtomicBoolean();
+
+        private ClosableProvider(UpscaleModel model) {
+            this.model = model;
+        }
+
+        @Override
+        public Optional<UpscaleModel> activeModel() {
+            return Optional.of(model);
+        }
+
+        @Override
+        public void close() {
+            closed.set(true);
+        }
+    }
+
     private UpscaleManager newManager() {
-        UpscaleModel model = new FakeModel();
+        return newManager(new FakeModel(), MtsrConfig.defaults());
+    }
+
+    private UpscaleManager newManager(UpscaleModel model, MtsrConfig config) {
         return new UpscaleManager(() -> Optional.of(model),
-                new UpscaleCache(tempDir.resolve("cache")));
+                new UpscaleCache(tempDir.resolve("cache-" + System.nanoTime())), config);
     }
 
     private static byte[] testPng() throws IOException {
+        return testPng(0xFFFF0000);
+    }
+
+    private static byte[] testPng(int firstPixel) throws IOException {
         BufferedImage image = new BufferedImage(2, 2, BufferedImage.TYPE_INT_ARGB);
-        image.setRGB(0, 0, 0xFFFF0000);
+        image.setRGB(0, 0, firstPixel);
         image.setRGB(1, 0, 0xFF00FF00);
         image.setRGB(0, 1, 0xFF0000FF);
         image.setRGB(1, 1, 0x80FFFFFF);
@@ -114,5 +183,119 @@ class UpscaleManagerTest {
             }
             assertEquals(1, manager.failedCount());
         }
+    }
+
+    @Test
+    void configuredPoolProcessesTexturesConcurrently() throws Exception {
+        MtsrConfig config = MtsrConfig.defaults();
+        config.workerThreads(4);
+        TrackingModel model = new TrackingModel();
+        CountDownLatch complete = new CountDownLatch(4);
+
+        try (UpscaleManager manager = newManager(model, config)) {
+            manager.beginBatch();
+            for (int i = 0; i < 4; i++) {
+                manager.queueTexture("somemod:textures/item/" + i + ".png",
+                        testPng(), (id, bytes) -> complete.countDown());
+            }
+            manager.endBatch();
+
+            assertTrue(complete.await(10, TimeUnit.SECONDS));
+            assertTrue(model.maximumActive.get() > 1);
+            assertEquals(4, manager.queuedCount());
+            assertEquals(4, manager.upscaledCount());
+        }
+    }
+
+    @Test
+    void deduplicatesSameTextureWhileInferenceIsInFlight() throws Exception {
+        CountDownLatch entered = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+        TrackingModel model = new TrackingModel(entered, release);
+        CountDownLatch callbacks = new CountDownLatch(2);
+        byte[] png = testPng();
+
+        try (UpscaleManager manager = newManager(model, MtsrConfig.defaults())) {
+            manager.queueTexture("somemod:textures/item/a.png", png,
+                    (id, bytes) -> callbacks.countDown());
+            assertTrue(entered.await(10, TimeUnit.SECONDS));
+            manager.queueTexture("somemod:textures/item/a.png", png,
+                    (id, bytes) -> callbacks.countDown());
+            release.countDown();
+
+            assertTrue(callbacks.await(10, TimeUnit.SECONDS));
+            assertEquals(1, model.calls.get());
+            assertEquals(1, manager.queuedCount());
+            assertEquals(1, manager.upscaledCount());
+        }
+    }
+
+    @Test
+    void completionListenerFiresOnceAndRearmsForNextBatch() throws Exception {
+        AtomicInteger notifications = new AtomicInteger();
+        CountDownLatch first = new CountDownLatch(1);
+        CountDownLatch second = new CountDownLatch(1);
+
+        try (UpscaleManager manager = newManager()) {
+            manager.addBatchCompletionListener(() -> {
+                if (notifications.incrementAndGet() == 1) {
+                    first.countDown();
+                } else {
+                    second.countDown();
+                }
+            });
+            manager.beginBatch();
+            manager.queueTexture("somemod:textures/item/a.png", testPng(),
+                    (id, bytes) -> {
+                    });
+            manager.endBatch();
+            assertTrue(first.await(10, TimeUnit.SECONDS));
+            assertEquals(1, notifications.get());
+
+            manager.beginBatch();
+            manager.queueTexture("somemod:textures/item/b.png", testPng(0xFF010203),
+                    (id, bytes) -> {
+                    });
+            manager.endBatch();
+            assertTrue(second.await(10, TimeUnit.SECONDS));
+            assertEquals(2, notifications.get());
+        }
+    }
+
+    @Test
+    void completionListenerRespectsConfiguration() throws Exception {
+        MtsrConfig config = MtsrConfig.defaults();
+        config.showCompletionToast(false);
+        AtomicInteger notifications = new AtomicInteger();
+        CountDownLatch complete = new CountDownLatch(1);
+
+        try (UpscaleManager manager = newManager(new FakeModel(), config)) {
+            manager.addBatchCompletionListener(notifications::incrementAndGet);
+            manager.beginBatch();
+            manager.queueTexture("somemod:textures/item/a.png", testPng(),
+                    (id, bytes) -> complete.countDown());
+            manager.endBatch();
+
+            assertTrue(complete.await(10, TimeUnit.SECONDS));
+            Thread.sleep(50);
+            assertEquals(0, notifications.get());
+        }
+    }
+
+    @Test
+    void closeClosesProviderAndSuppressesCompletionNotification() throws Exception {
+        ClosableProvider provider = new ClosableProvider(new TrackingModel());
+        AtomicInteger notifications = new AtomicInteger();
+        UpscaleManager manager = new UpscaleManager(provider,
+                new UpscaleCache(tempDir.resolve("close-cache")));
+        manager.addBatchCompletionListener(notifications::incrementAndGet);
+        manager.beginBatch();
+        manager.queueTexture("somemod:textures/item/a.png", testPng(),
+                (id, bytes) -> {
+                });
+        manager.close();
+
+        assertTrue(provider.closed.get());
+        assertEquals(0, notifications.get());
     }
 }
